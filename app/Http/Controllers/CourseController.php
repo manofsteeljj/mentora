@@ -12,7 +12,8 @@ class CourseController extends Controller
      */
     public function index()
     {
-        //
+        $courses = Course::where('user_id', auth()->id())->get();
+        return view('courses.index', compact('courses'));
     }
 
     /**
@@ -20,7 +21,7 @@ class CourseController extends Controller
      */
     public function create()
     {
-        //
+        return view('courses.create');
     }
 
     /**
@@ -49,7 +50,8 @@ class CourseController extends Controller
      */
     public function show(Course $course)
     {
-        //
+        $course->load('materials');
+        return view('courses.show', compact('course'));
     }
 
     /**
