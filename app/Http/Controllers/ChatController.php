@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Chat;
+use App\Models\Conversation;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,11 +12,13 @@ class ChatController extends Controller
 {
     /**
      * Send a message to the local Ollama AI and return the response.
+     * If no conversation_id is provided, a new conversation is created.
      */
     public function send(Request $request)
     {
         $request->validate([
-            'message' => 'required|string|max:5000',
+            'message'         => 'required|string|max:5000',
+            'conversation_id' => 'nullable|integer|exists:conversations,id',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -23,12 +26,30 @@ class ChatController extends Controller
             @ini_set('max_execution_time', intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
         }
 
-        $userMessage = $request->input('message');
+        $userMessage    = $request->input('message');
+        $conversationId = $request->input('conversation_id');
 
-        // Build conversation context from recent chat history
-        $recentChats = Chat::where('user_id', Auth::id())
+        // Create or fetch the conversation
+        if ($conversationId) {
+            $conversation = Conversation::where('id', $conversationId)
+                ->where('user_id', Auth::id())
+                ->firstOrFail();
+        } else {
+            // Auto-generate a title from the first ~50 chars of the message
+            $title = mb_strlen($userMessage) > 50
+                ? mb_substr($userMessage, 0, 50) . '...'
+                : $userMessage;
+
+            $conversation = Conversation::create([
+                'user_id' => Auth::id(),
+                'title'   => $title,
+            ]);
+        }
+
+        // Build conversation context from recent messages in THIS conversation
+        $recentChats = Chat::where('conversation_id', $conversation->id)
             ->orderBy('created_at', 'desc')
-            ->take(5)
+            ->take(10)
             ->get()
             ->reverse();
 
@@ -50,18 +71,16 @@ class ChatController extends Controller
 
         // Local AI server settings
         $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
-        $model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
-
-        // Use the Ollama /api/generate endpoint
-        $url = $baseUrl . '/api/generate';
+        $model   = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+        $url     = $baseUrl . '/api/generate';
 
         $payload = [
-            'model'  => $model,
-            'prompt' => $prompt,
-            'stream' => false,  // Get the full response at once
+            'model'   => $model,
+            'prompt'  => $prompt,
+            'stream'  => false,
             'options' => [
-                'temperature'   => 0.7,
-                'num_predict'   => 1024,
+                'temperature' => 0.7,
+                'num_predict' => 1024,
             ],
         ];
 
@@ -69,8 +88,8 @@ class ChatController extends Controller
         $retries = intval(env('LOCAL_AI_RETRIES', 2));
 
         $attempt = 0;
-        $resp = null;
-        $err = null;
+        $resp    = null;
+        $err     = null;
 
         while ($attempt <= $retries) {
             $attempt++;
@@ -90,46 +109,98 @@ class ChatController extends Controller
         if (!$resp || $resp->failed()) {
             $msg = $err ?? ($resp ? 'HTTP ' . $resp->status() : 'no response');
             return response()->json([
-                'response' => 'Sorry, I could not connect to the AI model. Please make sure Ollama is running. Error: ' . $msg,
-            ], 200); // Return 200 so the frontend can display the error message gracefully
+                'response'        => 'Sorry, I could not connect to the AI model. Please make sure Ollama is running. Error: ' . $msg,
+                'conversation_id' => $conversation->id,
+            ], 200);
         }
 
-        // Extract the response text
         $responseText = $this->extractResponse($resp);
 
         // Save to database
         Chat::create([
-            'user_id'   => Auth::id(),
-            'course_id' => null,
-            'message'   => $userMessage,
-            'response'  => $responseText,
+            'user_id'         => Auth::id(),
+            'conversation_id' => $conversation->id,
+            'course_id'       => null,
+            'message'         => $userMessage,
+            'response'        => $responseText,
         ]);
 
+        // Touch conversation so updated_at reflects last activity
+        $conversation->touch();
+
         return response()->json([
-            'response' => $responseText,
+            'response'        => $responseText,
+            'conversation_id' => $conversation->id,
         ]);
     }
 
     /**
-     * Get chat history for the authenticated user.
+     * List all conversations for the authenticated user (most recent first).
      */
-    public function history(Request $request)
+    public function conversations(Request $request)
     {
-        $chats = Chat::where('user_id', Auth::id())
-            ->orderBy('created_at', 'asc')
-            ->take(50)
-            ->get();
+        $conversations = Conversation::where('user_id', Auth::id())
+            ->withCount('chats')
+            ->orderBy('updated_at', 'desc')
+            ->take(30)
+            ->get()
+            ->map(function ($c) {
+                return [
+                    'id'         => $c->id,
+                    'title'      => $c->title,
+                    'chat_count' => $c->chats_count,
+                    'updated_at' => $c->updated_at->toISOString(),
+                    'created_at' => $c->created_at->toISOString(),
+                ];
+            });
+
+        return response()->json($conversations);
+    }
+
+    /**
+     * Get all messages for a specific conversation.
+     */
+    public function history(Request $request, $conversationId = null)
+    {
+        if ($conversationId) {
+            $conversation = Conversation::where('id', $conversationId)
+                ->where('user_id', Auth::id())
+                ->firstOrFail();
+
+            $chats = Chat::where('conversation_id', $conversation->id)
+                ->orderBy('created_at', 'asc')
+                ->get();
+        } else {
+            $chats = Chat::where('user_id', Auth::id())
+                ->whereNull('conversation_id')
+                ->orderBy('created_at', 'asc')
+                ->take(50)
+                ->get();
+        }
 
         return response()->json($chats);
     }
 
     /**
+     * Delete a conversation and all its messages.
+     */
+    public function deleteConversation($conversationId)
+    {
+        $conversation = Conversation::where('id', $conversationId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        $conversation->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Extract the response text from the Ollama HTTP response.
-     * Handles both regular JSON and streaming NDJSON.
      */
     private function extractResponse($resp): string
     {
-        $raw = (string) $resp->body();
+        $raw  = (string) $resp->body();
         $body = null;
 
         try {
@@ -138,17 +209,14 @@ class ChatController extends Controller
             $body = null;
         }
 
-        // Standard Ollama response shape
         if (is_array($body) && isset($body['response'])) {
             return trim($body['response']);
         }
 
-        // OpenAI-compatible shape
         if (is_array($body) && isset($body['choices'][0]['message']['content'])) {
             return trim($body['choices'][0]['message']['content']);
         }
 
-        // Try NDJSON streaming assembly
         if ($raw) {
             $collected = '';
             $lines = preg_split('/\r?\n/', $raw);
@@ -177,7 +245,6 @@ class ChatController extends Controller
             }
         }
 
-        // Fallback
         return $raw ?: 'No response received from AI model.';
     }
 }

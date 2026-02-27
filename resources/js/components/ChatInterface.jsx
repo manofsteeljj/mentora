@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Send, Bot, User, Loader2 } from 'lucide-react'
@@ -12,10 +14,11 @@ function formatTime() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function ChatInterface() {
+export default function ChatInterface({ conversationId = null, onConversationCreated }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [currentConversationId, setCurrentConversationId] = useState(conversationId)
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -24,10 +27,20 @@ export default function ChatInterface() {
     }
   }, [messages, isLoading])
 
-  // Load chat history on mount
+  // Reset messages when conversationId prop changes
   useEffect(() => {
+    setCurrentConversationId(conversationId)
+  }, [conversationId])
+
+  // Load chat history when conversationId changes
+  useEffect(() => {
+    if (!currentConversationId) {
+      setMessages([])
+      return
+    }
+
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-    fetch('/api/chat/history', {
+    fetch(`/api/chat/history/${currentConversationId}`, {
       headers: {
         'Accept': 'application/json',
         'X-CSRF-TOKEN': token || '',
@@ -53,10 +66,12 @@ export default function ChatInterface() {
             })
           })
           setMessages(loaded)
+        } else {
+          setMessages([])
         }
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => { setMessages([]) })
+  }, [currentConversationId])
 
   const sendMessage = async (content) => {
     if (!content.trim() || isLoading) return
@@ -74,6 +89,11 @@ export default function ChatInterface() {
 
     try {
       const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      const body = { message: content.trim() }
+      if (currentConversationId) {
+        body.conversation_id = currentConversationId
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -82,7 +102,7 @@ export default function ChatInterface() {
           'X-CSRF-TOKEN': token || '',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({ message: content.trim() }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -90,6 +110,12 @@ export default function ChatInterface() {
       }
 
       const data = await response.json()
+
+      // If this was a new conversation, save the returned conversation_id
+      if (data.conversation_id && !currentConversationId) {
+        setCurrentConversationId(data.conversation_id)
+        onConversationCreated?.(data.conversation_id)
+      }
 
       const assistantMessage = {
         id: generateId(),
@@ -190,8 +216,14 @@ export default function ChatInterface() {
                     </span>
                     <span className="text-xs text-gray-500">{message.timestamp}</span>
                   </div>
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-strong:text-gray-900 prose-strong:font-semibold prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-p:my-1">
+                    {message.role === 'assistant' ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    )}
                   </div>
                 </div>
               </div>

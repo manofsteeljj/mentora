@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -25,13 +27,31 @@ const navigationItems = [
   { id: 'students', label: 'Students', icon: Users },
 ]
 
-const recentChats = [
-  { id: '1', title: 'Help with React hooks', timestamp: '2 hours ago' },
-  { id: '2', title: 'Database normalization', timestamp: '1 day ago' },
-  { id: '3', title: 'Algorithm complexity', timestamp: '3 days ago' },
-]
+function timeAgo(dateStr) {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const seconds = Math.floor((now - date) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString()
+}
 
-export default function Sidebar({ activeView = 'dashboard', onViewChange, collapsed = false, onToggleCollapse }) {
+export default function Sidebar({
+  activeView = 'dashboard',
+  onViewChange,
+  collapsed = false,
+  onToggleCollapse,
+  conversations = [],
+  activeConversationId = null,
+  onSelectConversation,
+  onNewConversation,
+  onDeleteConversation,
+}) {
   const handleLogout = async () => {
     try {
       const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
@@ -102,18 +122,59 @@ export default function Sidebar({ activeView = 'dashboard', onViewChange, collap
           <>
             <Separator className="my-3" />
             <div className="px-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Recent Chats
-              </p>
-              <div className="space-y-1">
-                {recentChats.map((chat) => (
-                  <button
-                    key={chat.id}
-                    className="w-full text-left px-2 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors truncate"
-                  >
-                    {chat.title}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Recent Chats
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={onNewConversation}
+                  title="New chat"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="space-y-0.5">
+                {conversations.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-2 py-1">No conversations yet</p>
+                ) : (
+                  conversations.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className={cn(
+                        'group flex items-center gap-1 rounded-md transition-colors',
+                        activeConversationId === conv.id
+                          ? 'bg-green-50'
+                          : 'hover:bg-gray-100'
+                      )}
+                    >
+                      <button
+                        className={cn(
+                          'flex-1 text-left px-2 py-1.5 text-sm truncate',
+                          activeConversationId === conv.id
+                            ? 'text-green-800 font-medium'
+                            : 'text-gray-600 hover:text-gray-900'
+                        )}
+                        onClick={() => onSelectConversation?.(conv.id)}
+                        title={conv.title}
+                      >
+                        {conv.title}
+                      </button>
+                      <button
+                        className="hidden group-hover:flex items-center justify-center h-6 w-6 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeleteConversation?.(conv.id)
+                        }}
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </>

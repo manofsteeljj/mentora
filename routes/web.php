@@ -34,7 +34,9 @@ Route::middleware('auth')->group(function () {
 
     // AI Chat API
     Route::post('/api/chat', [ChatController::class, 'send'])->name('chat.send');
-    Route::get('/api/chat/history', [ChatController::class, 'history'])->name('chat.history');
+    Route::get('/api/chat/conversations', [ChatController::class, 'conversations'])->name('chat.conversations');
+    Route::get('/api/chat/history/{conversationId?}', [ChatController::class, 'history'])->name('chat.history');
+    Route::delete('/api/chat/conversations/{conversationId}', [ChatController::class, 'deleteConversation'])->name('chat.deleteConversation');
 });
 
 require __DIR__.'/auth.php';

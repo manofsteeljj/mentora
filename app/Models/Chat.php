@@ -10,6 +10,7 @@ class Chat extends Model
     protected $fillable = [
         'user_id',
         'course_id',
+        'conversation_id',
         'message',
         'response',
     ];
@@ -22,5 +23,10 @@ class Chat extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class);
     }
 }
