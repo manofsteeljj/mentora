@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Sidebar from './Sidebar'
 import Dashboard from './Dashboard'
 import ChatInterface from './ChatInterface'
+import CourseMaterials from './CourseMaterials'
+import MyCourses from './MyCourses'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -80,23 +82,9 @@ export default function DashboardLayout() {
           />
         )
       case 'materials':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Course Materials</h2>
-              <p className="text-sm">Materials feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <CourseMaterials />
       case 'courses':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">My Courses</h2>
-              <p className="text-sm">Courses feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <MyCourses />
       case 'grading':
         return (
           <div className="flex items-center justify-center h-full text-gray-500">

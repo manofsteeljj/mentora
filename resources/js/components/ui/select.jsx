@@ -71,7 +71,7 @@ function SelectContent({ children, className }) {
   if (!open) return null
   return (
     <div className={cn(
-      'absolute z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-md border border-gray-200 bg-white shadow-md animate-in',
+      'absolute z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-md border border-gray-200 bg-white text-gray-900 shadow-md animate-in',
       className
     )}>
       <div className="max-h-60 overflow-y-auto p-1">

@@ -3,7 +3,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Send, Bot, User, Loader2 } from 'lucide-react'
+import { Badge } from './ui/badge'
+import { Send, Bot, User, Loader2, FileText } from 'lucide-react'
+import ContextPanel from './ContextPanel'
 
 let nextId = 1
 function generateId() {
@@ -19,6 +21,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentConversationId, setCurrentConversationId] = useState(conversationId)
+  const [activeCourseId, setActiveCourseId] = useState(null)
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -93,6 +96,9 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       if (currentConversationId) {
         body.conversation_id = currentConversationId
       }
+      if (activeCourseId) {
+        body.course_id = activeCourseId
+      }
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -122,6 +128,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
         role: 'assistant',
         content: data.response || 'Sorry, I could not generate a response.',
         timestamp: formatTime(),
+        sources: Array.isArray(data.sources) ? data.sources : [],
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -151,7 +158,9 @@ export default function ChatInterface({ conversationId = null, onConversationCre
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white">
+    <div className="flex-1 flex h-full">
+      {/* Chat Column */}
+      <div className="flex-1 flex flex-col h-full bg-white min-w-0">
       <div className="border-b border-gray-200 p-4">
         <h2 className="font-semibold">AI Teaching Assistant</h2>
         <p className="text-sm text-gray-500">Ask questions about your course materials</p>
@@ -225,6 +234,25 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                       <p className="whitespace-pre-wrap">{message.content}</p>
                     )}
                   </div>
+                  {/* RAG Source Citations */}
+                  {message.sources && message.sources.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Sources:
+                      </span>
+                      {message.sources.map((src) => (
+                        <Badge
+                          key={src.id}
+                          variant="outline"
+                          className="text-xs font-normal text-green-800 border-green-300 bg-green-50 cursor-pointer hover:bg-green-100"
+                          title={src.course}
+                          onClick={() => window.open(`/api/materials/${src.id}/download`, '_blank')}
+                        >
+                          {src.title}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -274,6 +302,13 @@ export default function ChatInterface({ conversationId = null, onConversationCre
           </p>
         </form>
       </div>
+      </div>
+
+      {/* Context Panel (right sidebar) */}
+      <ContextPanel
+        onQuickAction={(msg) => sendMessage(msg)}
+        onCourseChange={(courseId) => setActiveCourseId(courseId)}
+      />
     </div>
   )
 }

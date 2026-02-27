@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Chat;
 use App\Models\Conversation;
+use App\Models\Material;
+use App\Models\Course;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -19,6 +22,7 @@ class ChatController extends Controller
         $request->validate([
             'message'         => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
+            'course_id'       => 'nullable|integer|exists:courses,id',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -28,6 +32,7 @@ class ChatController extends Controller
 
         $userMessage    = $request->input('message');
         $conversationId = $request->input('conversation_id');
+        $courseId        = $request->input('course_id');
 
         // Create or fetch the conversation
         if ($conversationId) {
@@ -58,10 +63,34 @@ class ChatController extends Controller
             $conversationContext .= "User: {$chat->message}\nAssistant: {$chat->response}\n\n";
         }
 
+        // ── RAG: Retrieve relevant materials ──────────────────────────────
+        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId);
+        $ragContext   = $ragResult['context'];
+        $ragSources   = $ragResult['sources'];
+
         $systemPrompt = "You are Mentora, a helpful AI teaching assistant for college educators. "
             . "You help with lesson planning, quiz generation, grading assistance, assignment creation, "
-            . "and answering questions about course materials. Be concise, helpful, and professional. "
-            . "Format your responses with clear structure using bullet points or numbered lists when appropriate.";
+            . "and answering questions about course materials. Be concise, helpful, and professional.\n\n"
+            . "FORMATTING RULES (you MUST follow these):\n"
+            . "- Always use Markdown formatting in every response.\n"
+            . "- Use ## headings to separate major sections.\n"
+            . "- Use ### sub-headings for sub-sections.\n"
+            . "- Use **bold** for key terms and important concepts.\n"
+            . "- Use bullet points (-) or numbered lists (1. 2. 3.) to organize information.\n"
+            . "- Add blank lines between sections for readability.\n"
+            . "- Use > blockquotes for definitions or important notes.\n"
+            . "- Use code blocks with ``` for any code, commands, or configuration examples.\n"
+            . "- NEVER output a wall of text in a single paragraph. Always break content into structured sections.\n"
+            . "- For study guides, quizzes, and lesson plans, use clear sections with headings, lists, and separators.";
+
+
+        if ($ragContext) {
+            $systemPrompt .= "\n\nIMPORTANT: Below are relevant excerpts from the instructor's uploaded course materials. "
+                . "Use these as your PRIMARY source of information when answering. "
+                . "Ground your responses in this material. If the question cannot be answered from the materials, "
+                . "say so and provide general knowledge as a supplement.\n\n"
+                . "=== COURSE MATERIALS ===\n" . $ragContext . "\n=== END MATERIALS ===";
+        }
 
         $prompt = $systemPrompt . "\n\n";
         if ($conversationContext) {
@@ -80,7 +109,7 @@ class ChatController extends Controller
             'stream'  => false,
             'options' => [
                 'temperature' => 0.7,
-                'num_predict' => 1024,
+                'num_predict' => 2048,
             ],
         ];
 
@@ -120,7 +149,7 @@ class ChatController extends Controller
         Chat::create([
             'user_id'         => Auth::id(),
             'conversation_id' => $conversation->id,
-            'course_id'       => null,
+            'course_id'       => $courseId,
             'message'         => $userMessage,
             'response'        => $responseText,
         ]);
@@ -131,6 +160,7 @@ class ChatController extends Controller
         return response()->json([
             'response'        => $responseText,
             'conversation_id' => $conversation->id,
+            'sources'         => $ragSources,
         ]);
     }
 
@@ -193,6 +223,199 @@ class ChatController extends Controller
         $conversation->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Retrieve relevant material chunks using keyword-based scoring (RAG).
+     * Returns the concatenated context string and an array of source metadata.
+     */
+    private function retrieveRelevantMaterials(string $query, ?int $courseId = null): array
+    {
+        $userId = Auth::id();
+
+        // Get all materials for the user's courses (optionally filtered by course)
+        $materialsQuery = Material::whereHas('course', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->whereNotNull('extracted_text')
+          ->where('extracted_text', '!=', '');
+
+        if ($courseId) {
+            $materialsQuery->where('course_id', $courseId);
+        }
+
+        $materials = $materialsQuery->with('course:id,course_code,course_name')->get();
+
+        if ($materials->isEmpty()) {
+            return ['context' => '', 'sources' => []];
+        }
+
+        // ── Keyword extraction ──────────────────────────────────────────
+        // Remove common stop words and extract meaningful terms
+        $stopWords = ['the','a','an','is','are','was','were','be','been','being',
+            'have','has','had','do','does','did','will','would','shall','should',
+            'may','might','must','can','could','i','me','my','we','our','you',
+            'your','he','she','it','they','them','their','this','that','these',
+            'those','am','or','and','but','if','of','at','by','for','with',
+            'about','to','from','in','on','up','out','not','so','what','which',
+            'who','when','where','how','all','each','some','any','no','than',
+            'too','very','just','also','into','over','after','before','between',
+            'under','again','then','here','there','why','own','same','other',
+            'make','create','generate','help','please','based','using','give',
+            'tell','explain','describe','provide','show','write','list'];
+
+        $queryLower = mb_strtolower($query);
+        $words = preg_split('/[\s,.\;:!?\(\)\[\]\{\}"\'\/\\\\\-]+/', $queryLower, -1, PREG_SPLIT_NO_EMPTY);
+        $keywords = array_values(array_filter($words, function ($w) use ($stopWords) {
+            return mb_strlen($w) > 2 && !in_array($w, $stopWords);
+        }));
+
+        if (empty($keywords)) {
+            // Fall back to first few words if all got filtered
+            $keywords = array_slice($words, 0, 3);
+        }
+
+        // ── Score each material by keyword relevance ────────────────────
+        $scored = [];
+        foreach ($materials as $material) {
+            $textLower = mb_strtolower($material->extracted_text);
+            $titleLower = mb_strtolower($material->title ?? '');
+            $score = 0;
+            $matchedKeywords = [];
+
+            foreach ($keywords as $kw) {
+                // Count occurrences in text (weighted)
+                $textHits  = mb_substr_count($textLower, $kw);
+                $titleHits = mb_substr_count($titleLower, $kw);
+
+                if ($textHits > 0 || $titleHits > 0) {
+                    // Title matches worth more; text matches have diminishing returns
+                    $score += ($titleHits * 10) + min($textHits, 20);
+                    $matchedKeywords[] = $kw;
+                }
+            }
+
+            if ($score > 0) {
+                $scored[] = [
+                    'material'  => $material,
+                    'score'     => $score,
+                    'keywords'  => array_unique($matchedKeywords),
+                ];
+            }
+        }
+
+        // Sort by score descending
+        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // If no keyword matches, include all materials with lower priority
+        if (empty($scored)) {
+            foreach ($materials as $material) {
+                $scored[] = [
+                    'material'  => $material,
+                    'score'     => 1,
+                    'keywords'  => [],
+                ];
+            }
+        }
+
+        // ── Build context string from top materials ─────────────────────
+        $maxContextChars = 6000; // stay within model context window
+        $usedChars       = 0;
+        $contextParts    = [];
+        $sources         = [];
+
+        foreach ($scored as $item) {
+            $mat  = $item['material'];
+            $text = $mat->extracted_text;
+
+            // Extract the most relevant chunk around keyword matches
+            $chunk = $this->extractRelevantChunk($text, $keywords, 1500);
+
+            $remaining = $maxContextChars - $usedChars;
+            if ($remaining <= 200) break;
+
+            if (mb_strlen($chunk) > $remaining) {
+                $chunk = mb_substr($chunk, 0, $remaining) . '...';
+            }
+
+            $courseLabel = $mat->course
+                ? "{$mat->course->course_code} - {$mat->course->course_name}"
+                : 'Unknown Course';
+
+            $contextParts[] = "[Source: {$mat->title} | Course: {$courseLabel}]\n{$chunk}";
+            $usedChars += mb_strlen($chunk) + 100;
+
+            $sources[] = [
+                'id'     => $mat->id,
+                'title'  => $mat->title,
+                'course' => $courseLabel,
+                'score'  => $item['score'],
+            ];
+
+            if (count($sources) >= 3) break; // max 3 source documents
+        }
+
+        Log::debug('RAG retrieval', [
+            'query'    => $query,
+            'keywords' => $keywords,
+            'sources'  => count($sources),
+            'chars'    => $usedChars,
+        ]);
+
+        return [
+            'context' => implode("\n\n---\n\n", $contextParts),
+            'sources' => $sources,
+        ];
+    }
+
+    /**
+     * Extract the most relevant chunk from a document around keyword matches.
+     */
+    private function extractRelevantChunk(string $text, array $keywords, int $maxLength = 1500): string
+    {
+        if (mb_strlen($text) <= $maxLength) {
+            return $text;
+        }
+
+        // Find the best position — the area with the most keyword density
+        $textLower = mb_strtolower($text);
+        $bestPos   = 0;
+        $bestScore = 0;
+        $windowSize = $maxLength;
+        $step       = 200;
+
+        for ($pos = 0; $pos < mb_strlen($text) - $windowSize; $pos += $step) {
+            $window = mb_substr($textLower, $pos, $windowSize);
+            $score  = 0;
+            foreach ($keywords as $kw) {
+                $score += mb_substr_count($window, $kw);
+            }
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestPos   = $pos;
+            }
+        }
+
+        // Extract the chunk, trying to start/end at sentence boundaries
+        $start = max(0, $bestPos);
+        $chunk = mb_substr($text, $start, $windowSize);
+
+        // Trim to sentence boundary at start
+        if ($start > 0) {
+            $firstPeriod = mb_strpos($chunk, '. ');
+            if ($firstPeriod !== false && $firstPeriod < 100) {
+                $chunk = mb_substr($chunk, $firstPeriod + 2);
+            }
+        }
+
+        // Trim to sentence boundary at end
+        $lastPeriod = mb_strrpos($chunk, '. ');
+        if ($lastPeriod !== false && $lastPeriod > mb_strlen($chunk) - 100) {
+            // already near the end, keep it
+        } elseif ($lastPeriod !== false && $lastPeriod > mb_strlen($chunk) * 0.7) {
+            $chunk = mb_substr($chunk, 0, $lastPeriod + 1);
+        }
+
+        return trim($chunk);
     }
 
     /**

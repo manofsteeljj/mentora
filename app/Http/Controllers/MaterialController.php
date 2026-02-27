@@ -65,4 +65,128 @@ class MaterialController extends Controller
         $material->delete();
         return back()->with('status', 'Material deleted.');
     }
+
+    /**
+     * API: List all materials for the authenticated user's courses.
+     */
+    public function apiIndex(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        $materials = Material::with('course')
+            ->whereHas('course', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($m) {
+                $size = null;
+                try {
+                    if (Storage::disk('public')->exists($m->file_path)) {
+                        $bytes = Storage::disk('public')->size($m->file_path);
+                        if ($bytes >= 1048576) {
+                            $size = round($bytes / 1048576, 1) . ' MB';
+                        } else {
+                            $size = round($bytes / 1024) . ' KB';
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $size = null;
+                }
+
+                $ext = strtolower(pathinfo($m->file_path, PATHINFO_EXTENSION));
+                $typeMap = [
+                    'pdf' => 'PDF',
+                    'pptx' => 'PowerPoint',
+                    'ppt' => 'PowerPoint',
+                    'docx' => 'Word',
+                    'doc' => 'Word',
+                    'xlsx' => 'Excel',
+                    'xls' => 'Excel',
+                    'txt' => 'Text',
+                ];
+
+                return [
+                    'id'          => $m->id,
+                    'title'       => $m->title ?: basename($m->file_path),
+                    'file_path'   => $m->file_path,
+                    'type'        => $typeMap[$ext] ?? strtoupper($ext),
+                    'size'        => $size,
+                    'course_id'   => $m->course_id,
+                    'course_name' => $m->course ? ($m->course->course_code . ' - ' . $m->course->course_name) : 'Unknown',
+                    'uploaded_at' => $m->created_at->toDateString(),
+                ];
+            });
+
+        return response()->json($materials);
+    }
+
+    /**
+     * API: Upload a material file.
+     */
+    public function apiStore(Request $request)
+    {
+        $request->validate([
+            'title'     => 'required|string|max:255',
+            'course_id' => 'required|exists:courses,id',
+            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:10240',
+        ]);
+
+        // Ensure user owns the course
+        $course = \App\Models\Course::where('id', $request->input('course_id'))
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $path = $request->file('file')->store('materials', 'public');
+
+        // Extract text from PDF
+        $text = null;
+        $ext = strtolower($request->file('file')->getClientOriginalExtension());
+        if ($ext === 'pdf') {
+            try {
+                $parser = new Parser();
+                $pdf = $parser->parseFile(storage_path('app/public/' . $path));
+                $text = $pdf->getText();
+            } catch (\Throwable $e) {
+                $text = null;
+            }
+        }
+
+        $material = Material::create([
+            'course_id'      => $course->id,
+            'title'          => $request->input('title'),
+            'file_path'      => $path,
+            'extracted_text'  => $text,
+        ]);
+
+        return response()->json(['success' => true, 'id' => $material->id]);
+    }
+
+    /**
+     * API: Delete a material.
+     */
+    public function apiDestroy(Request $request, $id)
+    {
+        $material = Material::whereHas('course', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
+        })->findOrFail($id);
+
+        Storage::disk('public')->delete($material->file_path);
+        $material->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * API: Download / view a material file.
+     */
+    public function apiDownload(Request $request, $id)
+    {
+        $material = Material::whereHas('course', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
+        })->findOrFail($id);
+
+        $fullPath = Storage::disk('public')->path($material->file_path);
+        return response()->file($fullPath);
+    }
 }

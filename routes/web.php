@@ -37,6 +37,21 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/chat/conversations', [ChatController::class, 'conversations'])->name('chat.conversations');
     Route::get('/api/chat/history/{conversationId?}', [ChatController::class, 'history'])->name('chat.history');
     Route::delete('/api/chat/conversations/{conversationId}', [ChatController::class, 'deleteConversation'])->name('chat.deleteConversation');
+
+    // Materials API
+    Route::get('/api/materials', [MaterialController::class, 'apiIndex'])->name('api.materials.index');
+    Route::post('/api/materials', [MaterialController::class, 'apiStore'])->name('api.materials.store');
+    Route::delete('/api/materials/{id}', [MaterialController::class, 'apiDestroy'])->name('api.materials.destroy');
+    Route::get('/api/materials/{id}/download', [MaterialController::class, 'apiDownload'])->name('api.materials.download');
+
+    // Courses API (for dropdowns)
+    Route::get('/api/courses', function (\Illuminate\Http\Request $request) {
+        return response()->json(
+            \App\Models\Course::where('user_id', $request->user()->id)
+                ->orderBy('course_code')
+                ->get(['id', 'course_code', 'course_name'])
+        );
+    })->name('api.courses.index');
 });
 
 require __DIR__.'/auth.php';
