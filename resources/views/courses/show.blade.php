@@ -39,6 +39,11 @@
                 </li>
             @endforeach
         </ul>
+        <form action="{{ route('ai.generateForCourse', ['course' => $course->id]) }}" method="POST" class="mt-3">
+            @csrf
+            <p>This will create a temporary assessment using the latest uploaded material for this course and generate questions (RAG).</p>
+            <button class="btn btn-warning">Generate Questions for Course (temporary)</button>
+        </form>
     @else
         <p>No materials yet.</p>
     @endif
