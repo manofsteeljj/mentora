@@ -8,6 +8,7 @@ import {
   Users,
   Settings,
   LogOut,
+  UserCircle,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
@@ -183,6 +184,14 @@ export default function Sidebar({
 
       {/* Bottom Section */}
       <div className="border-t border-gray-200 px-2 py-2 space-y-1">
+        <Button
+          variant="ghost"
+          className={cn('w-full justify-start gap-3 h-10', collapsed && 'justify-center px-2')}
+          onClick={() => onViewChange?.('profile')}
+        >
+          <UserCircle className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Profile</span>}
+        </Button>
         <Button
           variant="ghost"
           className={cn('w-full justify-start gap-3 h-10', collapsed && 'justify-center px-2')}

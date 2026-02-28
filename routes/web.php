@@ -9,6 +9,9 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\GoogleClassroomController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AssessmentController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GradingController;
+use App\Http\Controllers\StudentController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -59,12 +62,37 @@ Route::middleware('auth')->group(function () {
         );
     })->name('api.courses.index');
 
+    // Dashboard API
+    Route::get('/api/dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+
+    // User Profile API
+    Route::get('/api/user', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => $user->avatar,
+            'google_connected' => !empty($user->google_id),
+            'email_verified_at' => $user->email_verified_at,
+            'created_at' => $user->created_at,
+        ]);
+    })->name('api.user');
+
     // Google Classroom API
     Route::get('/api/google/status', [GoogleAuthController::class, 'status'])->name('google.status');
     Route::get('/api/google/classroom/courses', [GoogleClassroomController::class, 'listCourses'])->name('google.classroom.courses');
     Route::post('/api/google/classroom/import', [GoogleClassroomController::class, 'importCourses'])->name('google.classroom.import');
     Route::post('/api/google/classroom/sync', [GoogleClassroomController::class, 'sync'])->name('google.classroom.sync');
+    Route::get('/api/google/classroom/sync-status', [GoogleClassroomController::class, 'syncStatus'])->name('google.classroom.syncStatus');
     Route::get('/api/google/classroom/courses/{courseId}/students', [GoogleClassroomController::class, 'listStudents'])->name('google.classroom.students');
+
+    // Students API
+    Route::get('/api/students', [StudentController::class, 'index'])->name('api.students.index');
+
+    // Grading API
+    Route::get('/api/grading/submissions', [GradingController::class, 'index'])->name('api.grading.index');
+    Route::patch('/api/grading/submissions/{id}', [GradingController::class, 'update'])->name('api.grading.update');
 });
 
 require __DIR__.'/auth.php';

@@ -8,9 +8,21 @@ class Assessment extends Model
 {
     protected $fillable = [
         'course_id',
+        'google_classroom_id',
         'title',
         'instructions',
+        'max_points',
+        'due_date',
+        'state',
+        'description',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'due_date' => 'datetime',
+        ];
+    }
 
     public function course()
     {
@@ -20,5 +32,10 @@ class Assessment extends Model
     public function questions()
     {
         return $this->hasMany(Question::class);
+    }
+
+    public function submissions()
+    {
+        return $this->hasMany(Submission::class);
     }
 }

@@ -4,6 +4,10 @@ import Dashboard from './Dashboard'
 import ChatInterface from './ChatInterface'
 import CourseMaterials from './CourseMaterials'
 import MyCourses from './MyCourses'
+import GradingSystem from './GradingSystem'
+import Students from './Students'
+import Settings from './Settings'
+import Profile from './Profile'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -86,32 +90,13 @@ export default function DashboardLayout() {
       case 'courses':
         return <MyCourses />
       case 'grading':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Grading</h2>
-              <p className="text-sm">Grading feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <GradingSystem />
       case 'students':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Students</h2>
-              <p className="text-sm">Students feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <Students />
+      case 'profile':
+        return <Profile />
       case 'settings':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Settings</h2>
-              <p className="text-sm">Settings feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <Settings />
       default:
         return <Dashboard />
     }

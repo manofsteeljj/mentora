@@ -16,7 +16,15 @@ class Course extends Model
         'room',
         'status',
         'academic_term',
+        'last_synced_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'last_synced_at' => 'datetime',
+        ];
+    }
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -24,5 +32,15 @@ class Course extends Model
     public function materials()
     {
         return $this->hasMany(Material::class);
+    }
+
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
+
+    public function assessments()
+    {
+        return $this->hasMany(Assessment::class);
     }
 }
