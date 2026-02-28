@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { BookOpen, Users, Clock, Calendar } from 'lucide-react'
+import { BookOpen, Users, Clock, Calendar, RefreshCw, Download } from 'lucide-react'
 import { Progress } from './ui/progress'
 
 function getToken() {
@@ -12,8 +12,11 @@ function getToken() {
 export default function MyCourses() {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState(null)
+  const [googleConnected, setGoogleConnected] = useState(false)
 
-  useEffect(() => {
+  const fetchCourses = () => {
     fetch('/api/courses', {
       headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
       credentials: 'same-origin',
@@ -31,12 +34,58 @@ export default function MyCourses() {
           progress: c.progress ?? 0,
           currentTopic: c.current_topic || 'No topic set',
           nextClass: c.next_class || 'Not scheduled',
+          section: c.section || null,
+          room: c.room || null,
+          status: c.status || 'ACTIVE',
+          googleClassroomId: c.google_classroom_id || null,
         }))
         setCourses(mapped)
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchCourses()
+    // Check Google connection status
+    fetch('/api/google/status', {
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+      credentials: 'same-origin',
+    })
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setGoogleConnected(!!data.connected))
+      .catch(() => {})
   }, [])
+
+  const handleImport = async () => {
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const resp = await fetch('/api/google/classroom/import', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': getToken(),
+          'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin',
+      })
+      const data = await resp.json()
+      if (resp.ok) {
+        setSyncMessage({ type: 'success', text: `Imported ${data.imported} new, updated ${data.updated} courses (${data.total} total from Google Classroom)` })
+        fetchCourses()
+      } else if (data.error === 'not_connected' || data.error === 'token_expired') {
+        setSyncMessage({ type: 'error', text: 'Google account not connected. Redirecting to sign in...' })
+        setTimeout(() => { window.location.href = '/auth/google/redirect' }, 1500)
+      } else {
+        setSyncMessage({ type: 'error', text: data.message || 'Import failed' })
+      }
+    } catch {
+      setSyncMessage({ type: 'error', text: 'Network error during import' })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // Fallback demo data when no courses exist in the DB
   const displayCourses = courses.length > 0 ? courses : [
@@ -93,10 +142,45 @@ export default function MyCourses() {
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Teaching Courses</h1>
-          <p className="text-gray-500">Courses you are currently teaching</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Teaching Courses</h1>
+            <p className="text-gray-500">Courses you are currently teaching</p>
+          </div>
+          <div className="flex gap-2">
+            {googleConnected && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleImport}
+                disabled={syncing}
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync Google Classroom'}
+              </Button>
+            )}
+            {!googleConnected && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => { window.location.href = '/auth/google/redirect' }}
+              >
+                <Download className="w-4 h-4" />
+                Connect Google Classroom
+              </Button>
+            )}
+          </div>
         </div>
+
+        {syncMessage && (
+          <div className={`p-3 rounded-lg text-sm ${
+            syncMessage.type === 'success'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}>
+            {syncMessage.text}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center py-12 text-gray-400">Loading courses...</div>
@@ -110,8 +194,13 @@ export default function MyCourses() {
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline">{course.code}</Badge>
                         <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                          Active
+                        {course.status === 'ACTIVE' ? 'Active' : course.status}
+                      </Badge>
+                      {course.googleClassroomId && (
+                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs">
+                          Google Classroom
                         </Badge>
+                      )}
                       </div>
                       <CardTitle className="text-lg">{course.name}</CardTitle>
                       <CardDescription className="mt-1">

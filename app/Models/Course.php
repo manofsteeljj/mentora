@@ -8,10 +8,14 @@ class Course extends Model
 {
     protected $fillable = [
         'user_id',
+        'google_classroom_id',
         'course_code',
         'course_name',
         'description',
-        'academic_term'
+        'section',
+        'room',
+        'status',
+        'academic_term',
     ];
     public function user()
     {

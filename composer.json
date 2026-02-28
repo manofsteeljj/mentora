@@ -10,6 +10,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "google/apiclient": "^2.19",
+        "google/apiclient-services": "*",
         "laravel/breeze": "^2.3",
         "laravel/framework": "^12.0",
         "laravel/socialite": "^5.24",
@@ -40,6 +42,7 @@
         }
     },
     "scripts": {
+        "pre-autoload-dump": "Google\\Task\\Composer::cleanup",
         "setup": [
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
@@ -76,6 +79,9 @@
         ]
     },
     "extra": {
+        "google/apiclient-services": [
+            "Classroom"
+        ],
         "laravel": {
             "dont-discover": []
         }
