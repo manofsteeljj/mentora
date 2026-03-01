@@ -1,259 +1,627 @@
 import { Button } from './ui/button'
-import { GraduationCap, BookOpen, Brain, CheckCircle, Users, BarChart3, Shield, Zap } from 'lucide-react'
+import { GraduationCap, BookOpen, Brain, CheckCircle, Users, BarChart3, Shield, Zap, Target, TrendingUp, Award, ArrowRight, Sparkles, Lock, Clock } from 'lucide-react'
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
+import { useRef, useState, useEffect } from 'react'
 
 export default function LandingPage() {
   function goToLogin() {
     window.location.href = '/login'
   }
 
+  /* placeholder – replace with real file if available */
+  return <LandingPageInner onGetStarted={goToLogin} />
+}
+
+function LandingPageInner({ onGetStarted }) {
+  const [scrolled, setScrolled] = useState(false)
+  const containerRef = useRef(null)
+  const heroRef = useRef(null)
+  const problemRef = useRef(null)
+  const solutionRef = useRef(null)
+  const featuresRef = useRef(null)
+  const howItWorksRef = useRef(null)
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ['start start', 'end end']
+  })
+
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: heroRef,
+    offset: ['start start', 'end start']
+  })
+
+  const { scrollYProgress: problemProgress } = useScroll({
+    target: problemRef,
+    offset: ['start end', 'end start']
+  })
+
+  const { scrollYProgress: solutionProgress } = useScroll({
+    target: solutionRef,
+    offset: ['start end', 'end start']
+  })
+
+  const { scrollYProgress: featuresProgress } = useScroll({
+    target: featuresRef,
+    offset: ['start end', 'end start']
+  })
+
+  const { scrollYProgress: howItWorksProgress } = useScroll({
+    target: howItWorksRef,
+    offset: ['start end', 'end start']
+  })
+
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  })
+
+  const heroY = useTransform(heroProgress, [0, 1], ['0%', '100%'])
+  const heroScale = useTransform(heroProgress, [0, 1], [1, 1.2])
+  const heroOpacity = useTransform(heroProgress, [0, 0.5, 1], [1, 0.5, 0])
+
+  const layer1Y = useTransform(heroProgress, [0, 1], ['0%', '30%'])
+  const layer2Y = useTransform(heroProgress, [0, 1], ['0%', '50%'])
+  const layer3Y = useTransform(heroProgress, [0, 1], ['0%', '80%'])
+
+  const problemY = useTransform(problemProgress, [0, 1], ['100px', '-100px'])
+  const solutionY = useTransform(solutionProgress, [0, 1], ['50px', '-50px'])
+  const featuresY = useTransform(featuresProgress, [0, 1], ['80px', '-80px'])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const features = [
+    {
+      icon: Users,
+      title: 'Faculty Dashboard',
+      description: 'Comprehensive control center for managing courses, students, and academic progress with real-time insights.',
+      color: 'from-green-500 to-emerald-500'
+    },
+    {
+      icon: TrendingUp,
+      title: 'Student Progress Tracking',
+      description: 'Advanced analytics and AI-powered insights to monitor performance, identify risks, and optimize outcomes.',
+      color: 'from-emerald-500 to-teal-500'
+    },
+    {
+      icon: Sparkles,
+      title: 'Smart Matching System',
+      description: 'Intelligent algorithms that pair faculty with students based on expertise, needs, and learning styles.',
+      color: 'from-teal-500 to-green-600'
+    }
+  ]
+
+  const keyFeatures = [
+    {
+      icon: Brain,
+      title: 'AI-Powered Lesson Planning',
+      description: 'Generate comprehensive, context-aware lesson plans tailored to your curriculum in seconds.'
+    },
+    {
+      icon: Shield,
+      title: 'Academic Integrity Detection',
+      description: 'Advanced plagiarism and AI-content detection to maintain academic honesty.'
+    },
+    {
+      icon: BarChart3,
+      title: 'Performance Analytics',
+      description: 'Deep insights into student performance with predictive analytics and trend analysis.'
+    },
+    {
+      icon: Clock,
+      title: 'Automated Grading',
+      description: 'AI-assisted grading with intelligent feedback generation saves hours of work.'
+    }
+  ]
+
+  const steps = [
+    {
+      number: '01',
+      title: 'Upload Course Materials',
+      description: 'Import syllabi, PDFs, and educational content. Our AI understands your teaching context.'
+    },
+    {
+      number: '02',
+      title: 'Define Learning Objectives',
+      description: 'Set goals, grading criteria, and assessment standards. Mentora adapts to your methodology.'
+    },
+    {
+      number: '03',
+      title: 'Engage with AI Assistant',
+      description: 'Get personalized help with lesson planning, assessments, and student management.'
+    },
+    {
+      number: '04',
+      title: 'Track & Optimize',
+      description: 'Monitor progress, analyze performance, and continuously improve learning outcomes.'
+    }
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-green-100">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div ref={containerRef} className="relative min-h-screen bg-white text-gray-900 overflow-x-hidden">
+      {/* Sticky Navigation */}
+      <motion.header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          scrolled ? 'bg-white/90 backdrop-blur-xl border-b border-gray-200 shadow-sm' : 'bg-transparent'
+        }`}
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
+          <motion.div
+            className="flex items-center gap-3"
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="w-10 h-10 bg-green-700 rounded-full flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold text-gray-900">Mentora</span>
-          </div>
-          <Button
-            onClick={goToLogin}
-            className="bg-green-700 hover:bg-green-800"
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
-            Sign In
-          </Button>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
-        <div className="text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-green-100 text-green-800 px-4 py-2 rounded-full mb-6">
-            <Zap className="w-4 h-4" />
-            <span className="text-sm font-medium">AI-Powered Teaching Assistant</span>
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Transform Your Teaching with{' '}
-            <span className="text-green-700">AI Intelligence</span>
-          </h1>
-
-          <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-            Mentora is a context-aware AI teaching assistant designed for faculty members.
-            Create lesson plans, generate assessments, grade assignments, and track student performance—all in one intelligent platform.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
-              onClick={goToLogin}
-              className="bg-green-700 hover:bg-green-800 text-lg px-8 py-6 h-auto"
+              onClick={onGetStarted}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 border-0 px-6 py-2 text-white"
             >
-              Get Started
+              Sign In
+              <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
-            <button
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-lg font-medium border border-green-700 text-green-700 hover:bg-green-50 px-8 py-6 h-auto transition-colors"
-            >
-              Learn More
-            </button>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.header>
 
-      {/* Features Grid */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Everything You Need to Excel in Teaching
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Powerful features designed specifically for educators to save time and enhance learning outcomes.
-          </p>
-        </div>
+      {/* Hero Section - Fullscreen with Layered Parallax */}
+      <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
+        {/* Background Layers */}
+        <motion.div
+          style={{ y: layer3Y }}
+          className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-green-50"
+        />
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* Feature 1 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Brain className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              AI-Powered Lesson Planning
-            </h3>
-            <p className="text-gray-600">
-              Generate comprehensive lesson plans with learning objectives, activities, and assessments tailored to your curriculum.
-            </p>
-          </div>
+        <motion.div
+          style={{ y: layer2Y, opacity: 0.4 }}
+          className="absolute inset-0"
+        >
+          <div className="absolute top-20 left-10 w-96 h-96 bg-green-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+        </motion.div>
 
-          {/* Feature 2 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <BookOpen className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Assessment Creation
-            </h3>
-            <p className="text-gray-600">
-              Create quizzes, exams, and assignments with auto-generated questions aligned to your course objectives and difficulty levels.
-            </p>
-          </div>
+        <motion.div
+          style={{ y: layer1Y }}
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-white"
+        />
 
-          {/* Feature 3 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Academic Integrity Detection
-            </h3>
-            <p className="text-gray-600">
-              Detect plagiarism and AI-generated content with advanced algorithms. Maintain academic honesty with confidence.
-            </p>
-          </div>
-
-          {/* Feature 4 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <CheckCircle className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Intelligent Grading System
-            </h3>
-            <p className="text-gray-600">
-              AI-assisted grading with automated feedback generation. Save hours while providing personalized student feedback.
-            </p>
-          </div>
-
-          {/* Feature 5 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Users className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Student Performance Tracking
-            </h3>
-            <p className="text-gray-600">
-              Monitor individual and class-wide performance with detailed analytics. Identify at-risk students early.
-            </p>
-          </div>
-
-          {/* Feature 6 */}
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <BarChart3 className="w-6 h-6 text-green-700" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Course Analytics & Insights
-            </h3>
-            <p className="text-gray-600">
-              Comprehensive dashboards showing course progress, grade distributions, and learning outcome achievement.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                Built for Modern Educators
-              </h2>
-              <p className="text-lg text-gray-600 mb-6">
-                Mentora understands the challenges you face. Our AI adapts to your teaching style, course materials, and student needs.
-              </p>
-
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-4 h-4 text-green-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Context-Aware AI</h4>
-                    <p className="text-gray-600">Understands your courses, materials, and teaching context for personalized assistance.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-4 h-4 text-green-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Multi-Course Management</h4>
-                    <p className="text-gray-600">Handle multiple subjects, sections, and grading systems seamlessly.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-4 h-4 text-green-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Role-Based Access</h4>
-                    <p className="text-gray-600">Faculty and admin roles with appropriate permissions and capabilities.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-4 h-4 text-green-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Comprehensive Analytics</h4>
-                    <p className="text-gray-600">Track performance, engagement, and learning outcomes with detailed insights.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl p-8 h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-32 h-32 bg-green-700 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <GraduationCap className="w-20 h-20 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  Join Educators Who Trust Mentora
-                </h3>
-                <p className="text-gray-600">
-                  Empowering faculty to focus on what matters most—teaching and inspiring students.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="bg-gradient-to-r from-green-700 to-emerald-700 rounded-2xl p-12 text-center text-white">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Transform Your Teaching?
-          </h2>
-          <p className="text-xl mb-8 text-green-50">
-            Join faculty members using Mentora to enhance their teaching and improve student outcomes.
-          </p>
-          <button
-            onClick={goToLogin}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-lg font-medium bg-white text-green-700 hover:bg-gray-100 px-8 py-6 h-auto transition-colors"
+        {/* Hero Content */}
+        <motion.div
+          style={{ y: heroY, scale: heroScale, opacity: heroOpacity }}
+          className="relative z-10 text-center px-4 max-w-6xl mx-auto"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.3 }}
+            className="mb-6"
           >
-            Get Started Now
-          </button>
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-200 text-sm">
+              <Zap className="w-4 h-4 text-green-600" />
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent font-medium">
+                AI-Powered Teaching Assistant
+              </span>
+            </span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.5 }}
+            className="text-7xl md:text-9xl font-bold mb-6 tracking-tight"
+          >
+            <span className="bg-gradient-to-r from-gray-900 via-green-700 to-emerald-700 bg-clip-text text-transparent">
+              Mentora
+            </span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.7 }}
+            className="text-2xl md:text-3xl text-gray-600 mb-12 font-light"
+          >
+            Empowering Academic Mentorship<br />Through Smart Digital Solutions
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.9 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center"
+          >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                onClick={onGetStarted}
+                size="lg"
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 border-0 text-white text-lg px-10 py-7 shadow-2xl shadow-green-500/30"
+              >
+                Get Started
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-gray-300 bg-white hover:bg-gray-50 text-gray-900 text-lg px-10 py-7"
+              >
+                Learn More
+              </Button>
+            </motion.div>
+          </motion.div>
+        </motion.div>
+
+        {/* Scroll Indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 1.5 }}
+          className="absolute bottom-10 left-1/2 transform -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 border-2 border-gray-300 rounded-full flex items-start justify-center p-2"
+          >
+            <motion.div className="w-1 h-2 bg-gray-400 rounded-full" />
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* Glassmorphism Feature Cards - Floating */}
+      <section className="relative -mt-32 z-20 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 100 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-100px' }}
+                transition={{ duration: 0.8, delay: index * 0.2 }}
+                whileHover={{ y: -10, transition: { duration: 0.3 } }}
+                className="relative group"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500" />
+                <div className="relative bg-white/80 backdrop-blur-xl border border-gray-200 rounded-2xl p-8 h-full hover:border-green-300 hover:shadow-xl transition-all duration-500">
+                  <div className={`w-14 h-14 bg-gradient-to-r ${feature.color} rounded-xl flex items-center justify-center mb-6`}>
+                    <feature.icon className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3 text-gray-900">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Problem Statement */}
+      <section ref={problemRef} className="relative py-32 px-4">
+        <motion.div
+          style={{ y: problemY }}
+          className="max-w-5xl mx-auto text-center"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8 }}
+          >
+            <span className="inline-block px-4 py-2 rounded-full bg-red-50 border border-red-200 text-red-600 text-sm font-medium mb-6">
+              The Challenge
+            </span>
+          </motion.div>
+
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-4xl md:text-6xl font-bold mb-6 text-gray-900"
+          >
+            Teaching Is Getting{' '}
+            <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+              More Complex
+            </span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto"
+          >
+            Faculty members juggle multiple courses, diverse student needs, grading backlogs, and
+            administrative tasks. Traditional tools can&apos;t keep up with modern educational demands.
+            You need intelligent, context-aware assistance.
+          </motion.p>
+        </motion.div>
+      </section>
+
+      {/* Solution Overview */}
+      <section ref={solutionRef} className="relative py-32 px-4 bg-gradient-to-b from-white via-gray-50 to-white">
+        <motion.div
+          style={{ y: solutionY }}
+          className="max-w-5xl mx-auto text-center"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8 }}
+          >
+            <span className="inline-block px-4 py-2 rounded-full bg-green-50 border border-green-200 text-green-600 text-sm font-medium mb-6">
+              The Solution
+            </span>
+          </motion.div>
+
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-4xl md:text-6xl font-bold mb-6 text-gray-900"
+          >
+            Meet Your{' '}
+            <span className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              AI Teaching Partner
+            </span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto mb-12"
+          >
+            Mentora is a context-aware AI assistant that understands your courses, students, and
+            teaching style. It automates routine tasks, provides intelligent insights, and helps
+            you focus on what matters most—inspiring students.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            className="relative"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-3xl blur-3xl" />
+            <div className="relative bg-white/80 backdrop-blur-xl border border-gray-200 rounded-3xl p-12 shadow-xl">
+              <div className="grid md:grid-cols-3 gap-8">
+                <div className="text-center">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  >
+                    <Target className="w-8 h-8 text-white" />
+                  </motion.div>
+                  <h3 className="text-2xl font-bold mb-2 text-gray-900">Context-Aware</h3>
+                  <p className="text-gray-600">Understands your unique teaching context</p>
+                </div>
+                <div className="text-center">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  >
+                    <Zap className="w-8 h-8 text-white" />
+                  </motion.div>
+                  <h3 className="text-2xl font-bold mb-2 text-gray-900">Lightning Fast</h3>
+                  <p className="text-gray-600">Get instant responses and insights</p>
+                </div>
+                <div className="text-center">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-16 h-16 bg-gradient-to-r from-teal-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  >
+                    <Lock className="w-8 h-8 text-white" />
+                  </motion.div>
+                  <h3 className="text-2xl font-bold mb-2 text-gray-900">Secure & Private</h3>
+                  <p className="text-gray-600">Your data is encrypted and protected</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* Key Features */}
+      <section ref={featuresRef} className="relative py-32 px-4">
+        <motion.div
+          style={{ y: featuresY }}
+          className="max-w-7xl mx-auto"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8 }}
+            className="text-center mb-20"
+          >
+            <h2 className="text-4xl md:text-6xl font-bold mb-6 text-gray-900">
+              Powerful{' '}
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                Features
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Everything you need to excel in modern teaching
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {keyFeatures.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02 }}
+                className="group relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500" />
+                <div className="relative bg-white/80 backdrop-blur-xl border border-gray-200 rounded-2xl p-8 hover:border-green-300 hover:shadow-xl transition-all duration-500">
+                  <feature.icon className="w-12 h-12 text-green-600 mb-4" />
+                  <h3 className="text-2xl font-bold mb-3 text-gray-900">{feature.title}</h3>
+                  <p className="text-gray-600">{feature.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* How It Works */}
+      <section ref={howItWorksRef} className="relative py-32 px-4 bg-gradient-to-b from-white via-gray-50 to-white">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8 }}
+            className="text-center mb-20"
+          >
+            <h2 className="text-4xl md:text-6xl font-bold mb-6 text-gray-900">
+              How It{' '}
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                Works
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Get started in minutes and transform your teaching workflow
+            </p>
+          </motion.div>
+
+          <div className="space-y-12">
+            {steps.map((step, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: index % 2 === 0 ? -50 : 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.8, delay: index * 0.1 }}
+                className="relative"
+              >
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex-shrink-0 w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg"
+                  >
+                    <span className="text-4xl font-bold text-white">{step.number}</span>
+                  </motion.div>
+                  <div className="flex-1 bg-white/80 backdrop-blur-xl border border-gray-200 rounded-2xl p-8 shadow-lg">
+                    <h3 className="text-2xl font-bold mb-3 text-gray-900">{step.title}</h3>
+                    <p className="text-gray-600 text-lg">{step.description}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Call to Action */}
+      <section className="relative py-32 px-4">
+        <div className="max-w-5xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8 }}
+            className="relative"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-3xl blur-3xl" />
+            <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 rounded-3xl p-16 overflow-hidden shadow-2xl">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
+              <div className="relative z-10">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Award className="w-16 h-16 text-white mx-auto mb-6" />
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="text-4xl md:text-5xl font-bold mb-6 text-white"
+                >
+                  Ready to Transform Your Teaching?
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.4 }}
+                  className="text-xl text-white/90 mb-10 max-w-2xl mx-auto"
+                >
+                  Join forward-thinking educators who are using AI to enhance teaching and improve student outcomes.
+                </motion.p>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.6 }}
+                  className="flex flex-col sm:flex-row gap-4 justify-center"
+                >
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      onClick={onGetStarted}
+                      size="lg"
+                      className="bg-white text-green-600 hover:bg-gray-50 text-lg px-10 py-7 shadow-2xl"
+                    >
+                      Get Started Now
+                      <ArrowRight className="ml-2 w-5 h-5" />
+                    </Button>
+                  </motion.div>
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-white/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+      <footer className="relative border-t border-gray-200 bg-white py-12 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
               <span className="text-lg font-bold text-gray-900">Mentora</span>
             </div>
-            <p className="text-gray-600 text-sm">
-              © 2026 Mentora. AI Teaching Assistant Platform.
+            <p className="text-gray-500 text-sm">
+              &copy; 2026 Mentora. Empowering Academic Excellence Through AI.
             </p>
           </div>
         </div>
