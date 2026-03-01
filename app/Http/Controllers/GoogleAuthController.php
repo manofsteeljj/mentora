@@ -22,6 +22,8 @@ class GoogleAuthController extends Controller
                 'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
                 'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
                 'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly',
+                'https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly',
+                'https://www.googleapis.com/auth/drive.readonly',
             ])
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
             ->redirect();

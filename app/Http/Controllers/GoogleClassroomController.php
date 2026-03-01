@@ -132,6 +132,7 @@ class GoogleClassroomController extends Controller
                 'message' => 'Sync completed successfully!',
                 'courses' => $result['courses'],
                 'students' => $result['students'],
+                'materials' => $result['materials'] ?? null,
                 'synced_at' => $result['synced_at'],
             ]);
         } catch (\Exception $e) {
