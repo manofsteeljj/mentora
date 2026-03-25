@@ -23,7 +23,7 @@ function formatTimeAgo(isoString) {
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
-export default function MyCourses() {
+export default function MyCourses({ onViewMaterials }) {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -281,7 +281,16 @@ export default function MyCourses() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onViewMaterials?.({
+                        id: course.id,
+                        name: course.name,
+                        code: course.code,
+                      })}
+                    >
                       View Materials
                     </Button>
                     <Button size="sm" className="flex-1 bg-green-700 hover:bg-green-800">

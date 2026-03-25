@@ -4,6 +4,7 @@ import Dashboard from './Dashboard'
 import ChatInterface from './ChatInterface'
 import CourseMaterials from './CourseMaterials'
 import MyCourses from './MyCourses'
+import CourseMaterialsViewer from './CourseMaterialsViewer'
 import GradingSystem from './GradingSystem'
 import Students from './Students'
 import Settings from './Settings'
@@ -18,6 +19,7 @@ export default function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [conversations, setConversations] = useState([])
   const [activeConversationId, setActiveConversationId] = useState(null)
+  const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState(null)
 
   // Fetch conversations list
   const fetchConversations = useCallback(() => {
@@ -68,9 +70,17 @@ export default function DashboardLayout() {
 
   const handleViewChange = (view) => {
     setActiveView(view)
+    if (view !== 'course-materials-viewer') {
+      setSelectedCourseForMaterials(null)
+    }
     if (view !== 'chat') {
       setActiveConversationId(null)
     }
+  }
+
+  const handleOpenCourseMaterials = (course) => {
+    setSelectedCourseForMaterials(course)
+    setActiveView('course-materials-viewer')
   }
 
   const renderContent = () => {
@@ -88,7 +98,20 @@ export default function DashboardLayout() {
       case 'materials':
         return <CourseMaterials />
       case 'courses':
-        return <MyCourses />
+        return <MyCourses onViewMaterials={handleOpenCourseMaterials} />
+      case 'course-materials-viewer':
+        if (!selectedCourseForMaterials) return <MyCourses onViewMaterials={handleOpenCourseMaterials} />
+        return (
+          <CourseMaterialsViewer
+            courseId={selectedCourseForMaterials.id}
+            courseName={selectedCourseForMaterials.name}
+            courseCode={selectedCourseForMaterials.code}
+            onBack={() => {
+              setActiveView('courses')
+              setSelectedCourseForMaterials(null)
+            }}
+          />
+        )
       case 'grading':
         return <GradingSystem />
       case 'students':

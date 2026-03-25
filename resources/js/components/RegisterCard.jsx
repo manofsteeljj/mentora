@@ -205,7 +205,7 @@ export default function RegisterCard() {
                 className="w-4 h-4 mt-1 text-green-600 border-gray-300 rounded focus:ring-green-600"
               />
               <label htmlFor="agreeTerms" className="text-sm text-gray-700">
-                I agree to the <span className="text-green-600 hover:text-green-700 font-medium cursor-pointer">Terms and Conditions</span> and <span className="text-green-600 hover:text-green-700 font-medium cursor-pointer">Privacy Policy</span>
+                I agree to the <a href="/terms" className="text-green-600 hover:text-green-700 font-medium">Terms and Conditions</a> and <a href="/privacy" className="text-green-600 hover:text-green-700 font-medium">Privacy Policy</a>
               </label>
             </div>
 
