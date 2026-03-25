@@ -63,8 +63,10 @@ class ChatController extends Controller
             $conversationContext .= "User: {$chat->message}\nAssistant: {$chat->response}\n\n";
         }
 
+        $preferAllMaterials = $this->isMaterialGroundedTask($userMessage);
+
         // ── RAG: Retrieve relevant materials ──────────────────────────────
-        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId);
+        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
         $ragContext   = $ragResult['context'];
         $ragSources   = $ragResult['sources'];
 
@@ -90,6 +92,14 @@ class ChatController extends Controller
                 . "Ground your responses in this material. If the question cannot be answered from the materials, "
                 . "say so and provide general knowledge as a supplement.\n\n"
                 . "=== COURSE MATERIALS ===\n" . $ragContext . "\n=== END MATERIALS ===";
+        }
+
+        if ($preferAllMaterials && $ragContext) {
+            $systemPrompt .= "\n\nTASK-SPECIFIC RULES:\n"
+                . "- The user is asking for work based on already-loaded course materials. Do NOT ask them to provide the materials again.\n"
+                . "- If the request is to generate a quiz, questions, study guide, or lesson content, generate it directly from the provided materials.\n"
+                . "- When the materials are broad, cover the major topics represented in the sources instead of asking clarifying questions first.\n"
+                . "- Mention any assumptions briefly only if the materials are incomplete.";
         }
 
         $prompt = $systemPrompt . "\n\n";
@@ -229,15 +239,20 @@ class ChatController extends Controller
      * Retrieve relevant material chunks using keyword-based scoring (RAG).
      * Returns the concatenated context string and an array of source metadata.
      */
-    private function retrieveRelevantMaterials(string $query, ?int $courseId = null): array
+    private function retrieveRelevantMaterials(string $query, ?int $courseId = null, bool $preferAllMaterials = false): array
     {
         $userId = Auth::id();
 
-        // Get all materials for the user's courses (optionally filtered by course)
+        // Get all materials for the user's courses (optionally filtered by course).
+        // Use extracted text when available, but fall back to title/description metadata
+        // so Google Classroom links and other non-file materials can still ground responses.
         $materialsQuery = Material::whereHas('course', function ($q) use ($userId) {
             $q->where('user_id', $userId);
-        })->whereNotNull('extracted_text')
-          ->where('extracted_text', '!=', '');
+        })->where(function ($q) {
+            $q->whereNotNull('extracted_text')->where('extracted_text', '!=', '')
+              ->orWhereNotNull('description')->where('description', '!=', '')
+              ->orWhereNotNull('title')->where('title', '!=', '');
+        });
 
         if ($courseId) {
             $materialsQuery->where('course_id', $courseId);
@@ -277,7 +292,8 @@ class ChatController extends Controller
         // ── Score each material by keyword relevance ────────────────────
         $scored = [];
         foreach ($materials as $material) {
-            $textLower = mb_strtolower($material->extracted_text);
+            $searchText = $this->buildMaterialSearchText($material);
+            $textLower = mb_strtolower($searchText);
             $titleLower = mb_strtolower($material->title ?? '');
             $score = 0;
             $matchedKeywords = [];
@@ -303,10 +319,6 @@ class ChatController extends Controller
             }
         }
 
-        // Sort by score descending
-        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
-
-        // If no keyword matches, include all materials with lower priority
         if (empty($scored)) {
             foreach ($materials as $material) {
                 $scored[] = [
@@ -317,15 +329,46 @@ class ChatController extends Controller
             }
         }
 
+        // For quiz/study-guide style requests, prefer broader course coverage over narrow matches.
+        if ($preferAllMaterials) {
+            $seenMaterialIds = [];
+            foreach ($materials as $material) {
+                if (isset($seenMaterialIds[$material->id])) {
+                    continue;
+                }
+                $seenMaterialIds[$material->id] = true;
+
+                $existingIndex = null;
+                foreach ($scored as $index => $item) {
+                    if ($item['material']->id === $material->id) {
+                        $existingIndex = $index;
+                        break;
+                    }
+                }
+
+                if ($existingIndex === null) {
+                    $scored[] = [
+                        'material' => $material,
+                        'score'    => 1,
+                        'keywords' => [],
+                    ];
+                }
+            }
+        }
+
+        // Sort by score descending
+        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
+
         // ── Build context string from top materials ─────────────────────
-        $maxContextChars = 6000; // stay within model context window
+        $maxContextChars = $preferAllMaterials ? 9000 : 6000;
         $usedChars       = 0;
         $contextParts    = [];
         $sources         = [];
+        $maxSources      = $preferAllMaterials ? 5 : 3;
 
         foreach ($scored as $item) {
             $mat  = $item['material'];
-            $text = $mat->extracted_text;
+            $text = $this->buildMaterialSearchText($mat);
 
             // Extract the most relevant chunk around keyword matches
             $chunk = $this->extractRelevantChunk($text, $keywords, 1500);
@@ -349,9 +392,10 @@ class ChatController extends Controller
                 'title'  => $mat->title,
                 'course' => $courseLabel,
                 'score'  => $item['score'],
+                'has_text' => !empty($mat->extracted_text),
             ];
 
-            if (count($sources) >= 3) break; // max 3 source documents
+            if (count($sources) >= $maxSources) break;
         }
 
         Log::debug('RAG retrieval', [
@@ -374,6 +418,10 @@ class ChatController extends Controller
     {
         if (mb_strlen($text) <= $maxLength) {
             return $text;
+        }
+
+        if (empty($keywords)) {
+            return trim(mb_substr($text, 0, $maxLength));
         }
 
         // Find the best position — the area with the most keyword density
@@ -416,6 +464,60 @@ class ChatController extends Controller
         }
 
         return trim($chunk);
+    }
+
+    private function buildMaterialSearchText($material): string
+    {
+        $parts = [];
+
+        if (!empty($material->title)) {
+            $parts[] = 'Title: ' . $material->title;
+        }
+
+        if (!empty($material->description)) {
+            $parts[] = 'Description: ' . $material->description;
+        }
+
+        if (!empty($material->material_type)) {
+            $parts[] = 'Material Type: ' . $material->material_type;
+        }
+
+        if (!empty($material->extracted_text)) {
+            $parts[] = 'Content: ' . $material->extracted_text;
+        }
+
+        if (!empty($material->link)) {
+            $parts[] = 'Reference Link: ' . $material->link;
+        }
+
+        return trim(implode("\n", $parts));
+    }
+
+    private function isMaterialGroundedTask(string $query): bool
+    {
+        $query = mb_strtolower($query);
+        $phrases = [
+            'loaded material',
+            'available material',
+            'uploaded material',
+            'course material',
+            'based on the material',
+            'based on my material',
+            'generate quiz',
+            'create quiz',
+            'quiz questions',
+            'study guide',
+            'lesson plan',
+            'summarize',
+        ];
+
+        foreach ($phrases as $phrase) {
+            if (str_contains($query, $phrase)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

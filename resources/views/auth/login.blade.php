@@ -1,5 +1,5 @@
 <x-guest-layout>
-    {{-- React will mount the login UI into the guest layout's react-login-root element. --}}
+    {{-- React will mount the login UI into the react-login-root element. --}}
     <div id="react-login-root" data-props="{}">
         <noscript>
             <div class="p-6">
