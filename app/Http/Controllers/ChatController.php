@@ -65,6 +65,14 @@ class ChatController extends Controller
 
         $preferAllMaterials = $this->isMaterialGroundedTask($userMessage);
 
+        $isQuizRequest = (bool) preg_match('/\b(quiz|question|questions|test|exam)\b/i', $userMessage);
+        $requestedCount = null;
+        if (preg_match('/\b(\d{1,3})\b/', $userMessage, $m)) {
+            $requestedCount = intval($m[1]);
+        } elseif (preg_match('/\bten\b/i', $userMessage)) {
+            $requestedCount = 10;
+        }
+
         // ── RAG: Retrieve relevant materials ──────────────────────────────
         $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
         $ragContext   = $ragResult['context'];
@@ -83,7 +91,8 @@ class ChatController extends Controller
             . "- Use > blockquotes for definitions or important notes.\n"
             . "- Use code blocks with ``` for any code, commands, or configuration examples.\n"
             . "- NEVER output a wall of text in a single paragraph. Always break content into structured sections.\n"
-            . "- For study guides, quizzes, and lesson plans, use clear sections with headings, lists, and separators.";
+            . "- For study guides, quizzes, and lesson plans, use clear sections with headings, lists, and separators.\n"
+            . "- Do NOT paste long excerpts from the COURSE MATERIALS. Never quote more than 1-2 short lines; summarize instead.";
 
 
         if ($ragContext) {
@@ -100,6 +109,14 @@ class ChatController extends Controller
                 . "- If the request is to generate a quiz, questions, study guide, or lesson content, generate it directly from the provided materials.\n"
                 . "- When the materials are broad, cover the major topics represented in the sources instead of asking clarifying questions first.\n"
                 . "- Mention any assumptions briefly only if the materials are incomplete.";
+
+            if ($isQuizRequest) {
+                $n = $requestedCount && $requestedCount > 0 ? $requestedCount : 10;
+                $systemPrompt .= "\n\nQUIZ OUTPUT FORMAT:\n"
+                    . "- Start with exactly: 'Based on the uploaded materials, here are {$n} questions:'\n"
+                    . "- Then output exactly {$n} questions as a numbered list (1. ...).\n"
+                    . "- Do not include the course material text, previews, or extra sections after the list.";
+            }
         }
 
         $prompt = $systemPrompt . "\n\n";

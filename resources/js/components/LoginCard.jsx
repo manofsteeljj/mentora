@@ -361,6 +361,18 @@ export default function LoginCard() {
             </a>
           </motion.div>
 
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.45 }}
+            className="mt-6 text-center text-sm text-gray-600"
+          >
+            Don&apos;t have an account?{' '}
+            <a href="/register" className="text-green-600 hover:text-green-700 font-medium">
+              Register
+            </a>
+          </motion.p>
+
           {/* Help Text */}
           <motion.p
             initial={{ opacity: 0 }}

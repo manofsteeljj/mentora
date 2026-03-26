@@ -56,11 +56,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/materials', [MaterialController::class, 'apiStore'])->name('api.materials.store');
     Route::delete('/api/materials/{id}', [MaterialController::class, 'apiDestroy'])->name('api.materials.destroy');
     Route::get('/api/materials/{id}/download', [MaterialController::class, 'apiDownload'])->name('api.materials.download');
+    Route::get('/api/courses/{courseId}/materials', [MaterialController::class, 'apiCourseMaterials'])->name('api.course.materials');
 
     // Courses API (for dropdowns)
     Route::get('/api/courses', function (\Illuminate\Http\Request $request) {
         return response()->json(
             \App\Models\Course::where('user_id', $request->user()->id)
+                ->withCount('students')
                 ->orderBy('course_code')
                 ->get(['id', 'course_code', 'course_name', 'description', 'section', 'room', 'status', 'academic_term', 'google_classroom_id'])
         );

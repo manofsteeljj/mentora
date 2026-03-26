@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { BookOpen, Users, Clock, Calendar, RefreshCw, Download, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { BookOpen, Users, Clock, Calendar, RefreshCw, Download, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react'
 import { Progress } from './ui/progress'
+import { CourseAskAI } from './CourseAskAI'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -30,6 +31,7 @@ export default function MyCourses({ onViewMaterials }) {
   const [syncMessage, setSyncMessage] = useState(null)
   const [googleConnected, setGoogleConnected] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
+  const [aiViewCourse, setAiViewCourse] = useState(null)
   const syncIntervalRef = useRef(null)
 
   const fetchCourses = useCallback(() => {
@@ -149,6 +151,19 @@ export default function MyCourses({ onViewMaterials }) {
       return () => clearTimeout(t)
     }
   }, [syncMessage])
+
+  // If viewing AI chat for a course, show that instead
+  if (aiViewCourse) {
+    return (
+      <CourseAskAI
+        courseId={aiViewCourse.id}
+        courseName={aiViewCourse.name}
+        courseCode={aiViewCourse.code}
+        currentTopic={aiViewCourse.currentTopic}
+        onBack={() => setAiViewCourse(null)}
+      />
+    )
+  }
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
@@ -293,7 +308,12 @@ export default function MyCourses({ onViewMaterials }) {
                     >
                       View Materials
                     </Button>
-                    <Button size="sm" className="flex-1 bg-green-700 hover:bg-green-800">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-green-700 hover:bg-green-800 gap-1"
+                      onClick={() => setAiViewCourse(course)}
+                    >
+                      <Sparkles className="w-4 h-4" />
                       Ask AI
                     </Button>
                   </div>

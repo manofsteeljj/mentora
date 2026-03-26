@@ -17,8 +17,14 @@ class StudentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $courseId = $request->query('course_id');
 
         $courseIds = Course::where('user_id', $user->id)->pluck('id');
+        
+        // Filter by specific course if provided
+        if ($courseId) {
+            $courseIds = $courseIds->filter(fn($id) => $id == $courseId);
+        }
 
         // Eager-load course, submissions, and each submission's assessment
         $studentRows = Student::whereIn('course_id', $courseIds)

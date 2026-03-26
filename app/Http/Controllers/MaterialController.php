@@ -24,7 +24,7 @@ class MaterialController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|mimes:pdf|max:10240',
+            'file' => 'required|mimes:pdf|max:102400',
         ]);
 
         $path = $request->file('file')->store('materials', 'public');
@@ -152,7 +152,7 @@ class MaterialController extends Controller
         $request->validate([
             'title'     => 'required|string|max:255',
             'course_id' => 'required|exists:courses,id',
-            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:10240',
+            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:102400',
         ]);
 
         // Ensure user owns the course
@@ -212,4 +212,34 @@ class MaterialController extends Controller
         $fullPath = Storage::disk('public')->path($material->file_path);
         return response()->file($fullPath);
     }
+
+    /**
+     * API: Get materials for a specific course (with extracted text for RAG)
+     */
+    public function apiCourseMaterials(Request $request, $courseId)
+    {
+        // Verify user owns this course
+        $course = \App\Models\Course::where('id', $courseId)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $materials = Material::where('course_id', $courseId)
+            ->where(function ($q) {
+                $q->whereNotNull('extracted_text')
+                  ->where('extracted_text', '!=', '');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'title', 'extracted_text', 'material_type', 'source_type'])
+            ->map(function ($m) {
+                return [
+                    'id' => $m->id,
+                    'title' => $m->title,
+                    'text' => $m->extracted_text,
+                    'type' => $m->material_type ?? 'document',
+                ];
+            });
+
+        return response()->json($materials);
+    }
 }
+
