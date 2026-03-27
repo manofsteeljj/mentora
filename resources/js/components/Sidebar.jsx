@@ -5,6 +5,8 @@ import {
   FileText,
   BookOpen,
   ClipboardCheck,
+  FileSpreadsheet,
+  Calendar,
   Users,
   Settings,
   LogOut,
@@ -25,6 +27,8 @@ const navigationItems = [
   { id: 'materials', label: 'Course Materials', icon: FileText },
   { id: 'courses', label: 'My Courses', icon: BookOpen },
   { id: 'grading', label: 'Grading', icon: ClipboardCheck },
+  { id: 'attendance', label: 'Attendance', icon: Calendar },
+  { id: 'class-record', label: 'Class Record', icon: FileSpreadsheet },
   { id: 'students', label: 'Students', icon: Users },
 ]
 

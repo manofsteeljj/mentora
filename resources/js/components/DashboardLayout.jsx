@@ -6,6 +6,8 @@ import CourseMaterials from './CourseMaterials'
 import MyCourses from './MyCourses'
 import CourseMaterialsViewer from './CourseMaterialsViewer'
 import GradingSystem from './GradingSystem'
+import ClassRecord from './ClassRecord'
+import Attendance from './Attendance'
 import Students from './Students'
 import Settings from './Settings'
 import Profile from './Profile'
@@ -114,6 +116,10 @@ export default function DashboardLayout() {
         )
       case 'grading':
         return <GradingSystem />
+      case 'class-record':
+        return <ClassRecord />
+      case 'attendance':
+        return <Attendance />
       case 'students':
         return <Students />
       case 'profile':

@@ -12,6 +12,7 @@ use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GradingController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\AttendanceController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -99,6 +100,11 @@ Route::middleware('auth')->group(function () {
     // Grading API
     Route::get('/api/grading/submissions', [GradingController::class, 'index'])->name('api.grading.index');
     Route::patch('/api/grading/submissions/{id}', [GradingController::class, 'update'])->name('api.grading.update');
+
+    // Attendance API
+    Route::get('/api/attendance/records', [AttendanceController::class, 'index'])->name('api.attendance.records');
+    Route::put('/api/attendance/records', [AttendanceController::class, 'upsert'])->name('api.attendance.upsert');
+    Route::post('/api/attendance/excuse-letters/{excuseLetter}/review', [AttendanceController::class, 'reviewExcuseLetter'])->name('api.attendance.reviewExcuse');
 });
 
 require __DIR__.'/auth.php';
