@@ -24,7 +24,7 @@ class MaterialController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|mimes:pdf|max:10240',
+            'file' => 'required|mimes:pdf|max:102400',
         ]);
 
         $path = $request->file('file')->store('materials', 'public');
@@ -82,7 +82,7 @@ class MaterialController extends Controller
             ->map(function ($m) {
                 $size = null;
                 try {
-                    if (Storage::disk('public')->exists($m->file_path)) {
+                    if ($m->file_path && Storage::disk('public')->exists($m->file_path)) {
                         $bytes = Storage::disk('public')->size($m->file_path);
                         if ($bytes >= 1048576) {
                             $size = round($bytes / 1048576, 1) . ' MB';
@@ -94,7 +94,12 @@ class MaterialController extends Controller
                     $size = null;
                 }
 
-                $ext = strtolower(pathinfo($m->file_path, PATHINFO_EXTENSION));
+                if ($m->file_path) {
+                    $ext = strtolower(pathinfo($m->file_path, PATHINFO_EXTENSION));
+                } else {
+                    $ext = '';
+                }
+
                 $typeMap = [
                     'pdf' => 'PDF',
                     'pptx' => 'PowerPoint',
@@ -106,15 +111,33 @@ class MaterialController extends Controller
                     'txt' => 'Text',
                 ];
 
+                // For Google Classroom materials, use material_type for display
+                $displayType = $typeMap[$ext] ?? strtoupper($ext);
+                if (!$displayType && $m->material_type) {
+                    $displayType = match ($m->material_type) {
+                        'drive_file' => 'Drive File',
+                        'youtube'    => 'YouTube',
+                        'link'       => 'Link',
+                        'form'       => 'Form',
+                        default      => ucfirst($m->material_type),
+                    };
+                }
+
                 return [
-                    'id'          => $m->id,
-                    'title'       => $m->title ?: basename($m->file_path),
-                    'file_path'   => $m->file_path,
-                    'type'        => $typeMap[$ext] ?? strtoupper($ext),
-                    'size'        => $size,
-                    'course_id'   => $m->course_id,
-                    'course_name' => $m->course ? ($m->course->course_code . ' - ' . $m->course->course_name) : 'Unknown',
-                    'uploaded_at' => $m->created_at->toDateString(),
+                    'id'            => $m->id,
+                    'title'         => $m->title ?: basename($m->file_path ?? 'Untitled'),
+                    'file_path'     => $m->file_path,
+                    'type'          => $displayType ?: 'File',
+                    'size'          => $size,
+                    'course_id'     => $m->course_id,
+                    'course_name'   => $m->course ? ($m->course->course_code . ' - ' . $m->course->course_name) : 'Unknown',
+                    'uploaded_at'   => $m->created_at->toDateString(),
+                    'source_type'   => $m->source_type ?? 'local',
+                    'material_type' => $m->material_type ?? 'file',
+                    'link'          => $m->link,
+                    'description'   => $m->description,
+                    'thumbnail_url' => $m->thumbnail_url,
+                    'has_text'      => !empty($m->extracted_text),
                 ];
             });
 
@@ -129,7 +152,7 @@ class MaterialController extends Controller
         $request->validate([
             'title'     => 'required|string|max:255',
             'course_id' => 'required|exists:courses,id',
-            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:10240',
+            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:102400',
         ]);
 
         // Ensure user owns the course
@@ -189,4 +212,34 @@ class MaterialController extends Controller
         $fullPath = Storage::disk('public')->path($material->file_path);
         return response()->file($fullPath);
     }
+
+    /**
+     * API: Get materials for a specific course (with extracted text for RAG)
+     */
+    public function apiCourseMaterials(Request $request, $courseId)
+    {
+        // Verify user owns this course
+        $course = \App\Models\Course::where('id', $courseId)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $materials = Material::where('course_id', $courseId)
+            ->where(function ($q) {
+                $q->whereNotNull('extracted_text')
+                  ->where('extracted_text', '!=', '');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'title', 'extracted_text', 'material_type', 'source_type'])
+            ->map(function ($m) {
+                return [
+                    'id' => $m->id,
+                    'title' => $m->title,
+                    'text' => $m->extracted_text,
+                    'type' => $m->material_type ?? 'document',
+                ];
+            });
+
+        return response()->json($materials);
+    }
 }
+

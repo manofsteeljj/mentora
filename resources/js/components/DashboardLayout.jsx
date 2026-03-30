@@ -1,9 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react'
 import Sidebar from './Sidebar'
-import Dashboard from './Dashboard'
-import ChatInterface from './ChatInterface'
-import CourseMaterials from './CourseMaterials'
-import MyCourses from './MyCourses'
+import { Toaster } from 'sonner'
+
+const Dashboard = lazy(() => import('./Dashboard'))
+const ChatInterface = lazy(() => import('./ChatInterface'))
+const CourseMaterials = lazy(() => import('./CourseMaterials'))
+const MyCourses = lazy(() => import('./MyCourses'))
+const CreateCourse = lazy(() => import('./CreateCourse'))
+const CourseMaterialsViewer = lazy(() => import('./CourseMaterialsViewer'))
+const GradingSystem = lazy(() => import('./GradingSystem'))
+const ClassRecord = lazy(() => import('./ClassRecord'))
+const Attendance = lazy(() => import('./Attendance'))
+const Students = lazy(() => import('./Students'))
+const Settings = lazy(() => import('./Settings'))
+const Profile = lazy(() => import('./Profile'))
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -14,6 +24,7 @@ export default function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [conversations, setConversations] = useState([])
   const [activeConversationId, setActiveConversationId] = useState(null)
+  const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState(null)
 
   // Fetch conversations list
   const fetchConversations = useCallback(() => {
@@ -64,9 +75,17 @@ export default function DashboardLayout() {
 
   const handleViewChange = (view) => {
     setActiveView(view)
+    if (view !== 'course-materials-viewer') {
+      setSelectedCourseForMaterials(null)
+    }
     if (view !== 'chat') {
       setActiveConversationId(null)
     }
+  }
+
+  const handleOpenCourseMaterials = (course) => {
+    setSelectedCourseForMaterials(course)
+    setActiveView('course-materials-viewer')
   }
 
   const renderContent = () => {
@@ -84,34 +103,50 @@ export default function DashboardLayout() {
       case 'materials':
         return <CourseMaterials />
       case 'courses':
-        return <MyCourses />
+        return (
+          <MyCourses
+            onViewMaterials={handleOpenCourseMaterials}
+            onCreateCourse={() => setActiveView('create-course')}
+          />
+        )
+      case 'create-course':
+        return (
+          <CreateCourse
+            onBack={() => setActiveView('courses')}
+          />
+        )
+      case 'course-materials-viewer':
+        if (!selectedCourseForMaterials) {
+          return (
+            <MyCourses
+              onViewMaterials={handleOpenCourseMaterials}
+              onCreateCourse={() => setActiveView('create-course')}
+            />
+          )
+        }
+        return (
+          <CourseMaterialsViewer
+            courseId={selectedCourseForMaterials.id}
+            courseName={selectedCourseForMaterials.name}
+            courseCode={selectedCourseForMaterials.code}
+            onBack={() => {
+              setActiveView('courses')
+              setSelectedCourseForMaterials(null)
+            }}
+          />
+        )
       case 'grading':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Grading</h2>
-              <p className="text-sm">Grading feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <GradingSystem />
+      case 'class-record':
+        return <ClassRecord />
+      case 'attendance':
+        return <Attendance />
       case 'students':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Students</h2>
-              <p className="text-sm">Students feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <Students />
+      case 'profile':
+        return <Profile />
       case 'settings':
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Settings</h2>
-              <p className="text-sm">Settings feature coming soon...</p>
-            </div>
-          </div>
-        )
+        return <Settings />
       default:
         return <Dashboard />
     }
@@ -119,6 +154,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      <Toaster richColors position="top-right" />
       <Sidebar
         activeView={activeView}
         onViewChange={handleViewChange}
@@ -131,7 +167,9 @@ export default function DashboardLayout() {
         onDeleteConversation={handleDeleteConversation}
       />
       <main className="flex-1 overflow-y-auto">
-        {renderContent()}
+        <Suspense fallback={<div className="p-6 text-gray-600">Loading...</div>}>
+          {renderContent()}
+        </Suspense>
       </main>
     </div>
   )

@@ -110,10 +110,80 @@ class GoogleClassroomController extends Controller
     }
 
     /**
-     * Sync: re-import all courses (convenient alias).
+     * Full sync: import courses + students from Google Classroom.
+     * This is the main endpoint for continuous data refresh.
      */
     public function sync(Request $request)
     {
-        return $this->importCourses($request);
+        $user = $request->user();
+
+        if (!$user->google_token) {
+            return response()->json([
+                'error'   => 'not_connected',
+                'message' => 'Google account not connected. Please sign in with Google first.',
+            ], 401);
+        }
+
+        try {
+            $service = new GoogleClassroomService($user);
+            $result  = $service->syncAll();
+
+            return response()->json([
+                'message' => 'Sync completed successfully!',
+                'courses' => $result['courses'],
+                'students' => $result['students'],
+                'materials' => $result['materials'] ?? null,
+                'synced_at' => $result['synced_at'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Google Classroom full sync failed', ['error' => $e->getMessage()]);
+
+            if (str_contains($e->getMessage(), 're-authenticate')) {
+                return response()->json([
+                    'error'   => 'token_expired',
+                    'message' => 'Google token expired. Please sign in with Google again.',
+                ], 401);
+            }
+
+            return response()->json([
+                'error'   => 'sync_failed',
+                'message' => 'Failed to sync: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Return the last sync status for the user.
+     */
+    public function syncStatus(Request $request)
+    {
+        $user = $request->user();
+
+        $googleConnected = !empty($user->google_token);
+        $lastSyncedAt = $user->last_synced_at;
+
+        // Also gather per-course sync info
+        $courseSyncInfo = [];
+        if ($googleConnected) {
+            $courses = \App\Models\Course::where('user_id', $user->id)
+                ->whereNotNull('google_classroom_id')
+                ->select('id', 'course_code', 'course_name', 'last_synced_at')
+                ->withCount('students')
+                ->get();
+
+            $courseSyncInfo = $courses->map(fn($c) => [
+                'id'           => $c->id,
+                'code'         => $c->course_code,
+                'name'         => $c->course_name,
+                'lastSynced'   => $c->last_synced_at?->toISOString(),
+                'studentCount' => $c->students_count,
+            ]);
+        }
+
+        return response()->json([
+            'connected'    => $googleConnected,
+            'lastSyncedAt' => $lastSyncedAt?->toISOString(),
+            'courses'      => $courseSyncInfo,
+        ]);
     }
 }

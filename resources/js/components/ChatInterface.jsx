@@ -22,13 +22,86 @@ export default function ChatInterface({ conversationId = null, onConversationCre
   const [isLoading, setIsLoading] = useState(false)
   const [currentConversationId, setCurrentConversationId] = useState(conversationId)
   const [activeCourseId, setActiveCourseId] = useState(null)
+  const [courses, setCourses] = useState([])
   const scrollRef = useRef(null)
+
+  function getToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+  }
+
+  const activeCourse = courses.find(c => String(c.id) === String(activeCourseId))
+
+  const getLastGradingPeriod = () => {
+    try {
+      return window.localStorage.getItem('mentora_last_grading_period') || ''
+    } catch {
+      return ''
+    }
+  }
+
+  const withQuickActionContext = (baseMessage) => {
+    if (!activeCourseId) return baseMessage
+
+    const courseLabel = activeCourse
+      ? `${activeCourse.course_code || ''}${activeCourse.course_code && activeCourse.course_name ? ' - ' : ''}${activeCourse.course_name || ''}`.trim()
+      : ''
+
+    const gradingPeriod = getLastGradingPeriod()
+
+    const lines = []
+    if (courseLabel) lines.push(`Course: ${courseLabel}`)
+    if (gradingPeriod) lines.push(`Grading period: ${gradingPeriod}`)
+
+    const mentionsMaterials = /materials|course\s+materials|uploaded/i.test(String(baseMessage || ''))
+    if (!mentionsMaterials) {
+      lines.push('Use my uploaded course materials as the primary reference.')
+    }
+
+    if (lines.length === 0) return baseMessage
+    return `${lines.join('\n')}\n\n${baseMessage}`
+  }
+
+  const markdownComponents = {
+    h2: (props) => <h2 className="text-base font-semibold mt-3 mb-1 text-gray-900" {...props} />,
+    h3: (props) => <h3 className="text-sm font-semibold mt-3 mb-1 text-gray-900" {...props} />,
+    p: (props) => <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-900 my-1" {...props} />,
+    strong: (props) => <strong className="font-semibold text-gray-900" {...props} />,
+    ul: (props) => <ul className="list-disc pl-5 text-sm space-y-1 my-1 text-gray-900" {...props} />,
+    ol: (props) => <ol className="list-decimal pl-5 text-sm space-y-1 my-1 text-gray-900" {...props} />,
+    li: (props) => <li className="leading-relaxed" {...props} />,
+    blockquote: (props) => (
+      <blockquote className="border-l-4 border-green-600 pl-3 italic text-sm opacity-90 my-2" {...props} />
+    ),
+    code: (props) => <code className="px-1 py-0.5 rounded bg-gray-100 text-gray-900 text-xs" {...props} />,
+    pre: (props) => <pre className="p-3 rounded bg-gray-100 overflow-x-auto text-xs my-2" {...props} />,
+  }
+
+  const normalizeSources = (rawSources) => {
+    if (!Array.isArray(rawSources)) return []
+    return rawSources
+      .map((s) => {
+        if (typeof s === 'string') return { title: s }
+        if (s && typeof s === 'object') return s
+        return null
+      })
+      .filter(Boolean)
+  }
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isLoading])
+
+  useEffect(() => {
+    fetch('/api/courses', {
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+      credentials: 'same-origin',
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setCourses(Array.isArray(data) ? data : []))
+      .catch(() => setCourses([]))
+  }, [])
 
   // Reset messages when conversationId prop changes
   useEffect(() => {
@@ -177,32 +250,46 @@ export default function ChatInterface({ conversationId = null, onConversationCre
               <p className="text-gray-500 mb-4">I&apos;m your context-aware teaching assistant.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
                 <button
-                  onClick={() => sendMessage("Create a lesson plan for OSPF multi-area")}
+                  onClick={() => sendMessage(withQuickActionContext("Create a lesson plan for OSPF multi-area"))}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📚 Lesson Planning</p>
                   <p className="text-xs text-gray-500">Create comprehensive lesson plans</p>
                 </button>
                 <button
-                  onClick={() => sendMessage("Generate quiz questions about Database normalization")}
+                  onClick={() => sendMessage(withQuickActionContext("Generate quiz questions about Database normalization"))}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">✍️ Generate Quiz</p>
                   <p className="text-xs text-gray-500">Create assessments with rubrics</p>
                 </button>
                 <button
-                  onClick={() => sendMessage("Help me grade student submissions")}
+                  onClick={() => sendMessage(withQuickActionContext("Help me grade student submissions"))}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📊 Grading Assistance</p>
                   <p className="text-xs text-gray-500">AI-powered grading suggestions</p>
                 </button>
                 <button
-                  onClick={() => sendMessage("Create an assignment for OSPF configuration")}
+                  onClick={() => sendMessage(withQuickActionContext("Create an assignment for OSPF configuration"))}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📝 Create Assignment</p>
                   <p className="text-xs text-gray-500">Design student projects</p>
+                </button>
+                <button
+                  onClick={() => sendMessage(withQuickActionContext("Summarize the key concepts from my uploaded course materials"))}
+                  className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-medium text-sm">📄 Summarize Materials</p>
+                  <p className="text-xs text-gray-500">Extract key points and examples</p>
+                </button>
+                <button
+                  onClick={() => sendMessage(withQuickActionContext("Create a grading rubric for my next assignment with criteria and point breakdown"))}
+                  className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-medium text-sm">🧩 Build a Rubric</p>
+                  <p className="text-xs text-gray-500">Clear criteria and point weighting</p>
                 </button>
               </div>
             </div>
@@ -227,7 +314,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                   </div>
                   <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-strong:text-gray-900 prose-strong:font-semibold prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-p:my-1">
                     {message.role === 'assistant' ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {message.content}
                       </ReactMarkdown>
                     ) : (
@@ -240,17 +327,29 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                       <span className="text-xs text-gray-400 flex items-center gap-1">
                         <FileText className="w-3 h-3" /> Sources:
                       </span>
-                      {message.sources.map((src) => (
-                        <Badge
-                          key={src.id}
-                          variant="outline"
-                          className="text-xs font-normal text-green-800 border-green-300 bg-green-50 cursor-pointer hover:bg-green-100"
-                          title={src.course}
-                          onClick={() => window.open(`/api/materials/${src.id}/download`, '_blank')}
-                        >
-                          {src.title}
-                        </Badge>
-                      ))}
+                      {normalizeSources(message.sources).map((src, idx) => {
+                        const key = src?.id ?? `${src?.title ?? 'source'}-${idx}`
+                        const hasId = typeof src?.id !== 'undefined' && src?.id !== null
+                        return (
+                          <Badge
+                            key={key}
+                            variant="outline"
+                            className={
+                              hasId
+                                ? 'text-xs font-normal text-green-800 border-green-300 bg-green-50 cursor-pointer hover:bg-green-100'
+                                : 'text-xs font-normal text-green-800 border-green-300 bg-green-50'
+                            }
+                            title={src?.course}
+                            onClick={
+                              hasId
+                                ? () => window.open(`/api/materials/${src.id}/download`, '_blank')
+                                : undefined
+                            }
+                          >
+                            {src?.title ?? `Source ${idx + 1}`}
+                          </Badge>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -306,7 +405,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
 
       {/* Context Panel (right sidebar) */}
       <ContextPanel
-        onQuickAction={(msg) => sendMessage(msg)}
+        onQuickAction={(msg) => sendMessage(withQuickActionContext(msg))}
         onCourseChange={(courseId) => setActiveCourseId(courseId)}
       />
     </div>

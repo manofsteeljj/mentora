@@ -16,9 +16,6 @@
         @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/app.jsx'])
     </head>
     <body class="font-sans text-gray-900 antialiased">
-        {{-- React LoginCard handles the full page layout --}}
-        <div id="react-login-root" data-props="{}">
-            {{ $slot }}
-        </div>
+        {{ $slot }}
     </body>
 </html>
