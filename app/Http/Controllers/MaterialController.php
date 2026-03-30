@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Material;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Smalot\PdfParser\Parser;
@@ -17,7 +18,12 @@ class MaterialController extends Controller
     public function index($courseId)
     {
         $materials = Material::where('course_id', $courseId)->get();
-        return view('materials.index', compact('materials', 'courseId'));
+        $course = Course::find($courseId);
+        $courseLabel = $course
+            ? trim(($course->course_code ? $course->course_code . ' - ' : '') . ($course->course_name ?? ''))
+            : 'Unknown Course';
+
+        return view('materials.index', compact('materials', 'courseId', 'courseLabel'));
     }
 
     public function store(Request $request, $courseId)

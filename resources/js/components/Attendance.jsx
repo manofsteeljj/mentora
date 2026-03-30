@@ -29,6 +29,7 @@ import {
 } from './ui/dialog'
 import { Textarea } from './ui/textarea'
 import { Progress } from './ui/progress'
+import { formatCourseLabel } from '../lib/courseDisplay'
 
 export default function Attendance() {
   const [courses, setCourses] = useState([])
@@ -215,12 +216,14 @@ export default function Attendance() {
               <Filter className="w-5 h-5" />
               <Select value={selectedCourse} onValueChange={(v) => setSelectedCourse(v)}>
                 <SelectTrigger className="w-64 bg-white text-gray-900">
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select course">
+                    {selectedCourseInfo ? formatCourseLabel(selectedCourseInfo) : 'Select course'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((course) => (
                     <SelectItem key={course.id} value={String(course.id)}>
-                      {course.course_code} - {course.course_name} (Section {course.section})
+                      {formatCourseLabel(course)}
                     </SelectItem>
                   ))}
                 </SelectContent>

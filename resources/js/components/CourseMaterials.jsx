@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Upload, FileText, File, Download, Trash2, Eye, Loader2, X } from 'lucide-react'
+import { formatCourseLabel } from '../lib/courseDisplay'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -258,7 +259,7 @@ export default function CourseMaterials() {
                   <option value="">Select a course...</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.course_code} - {c.course_name}
+                      {formatCourseLabel(c)}
                     </option>
                   ))}
                 </select>

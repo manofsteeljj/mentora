@@ -33,6 +33,7 @@ import {
 } from 'recharts'
 import { Button } from './ui/button'
 import { toast } from 'sonner'
+import { formatCourseLabel, getCourseCode, getCourseName } from '../lib/courseDisplay'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -355,14 +356,19 @@ export default function Dashboard() {
               <Filter className="w-5 h-5" />
               <Select value={selectedCourse} onValueChange={setSelectedCourse}>
                 <SelectTrigger className="w-64 bg-white text-gray-900">
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select course">
+                    {selectedCourse === 'all'
+                      ? 'All Courses'
+                      : selectedCourseInfo
+                        ? formatCourseLabel(selectedCourseInfo)
+                        : 'Select course'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Courses</SelectItem>
                   {courses.map((course) => (
                     <SelectItem key={course.id} value={String(course.id)}>
-                      {course.code} - {course.name}
-                      {course.section ? ` (Section ${course.section})` : ''}
+                      {formatCourseLabel(course)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -375,7 +381,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-green-100 text-xs mb-1">Course Code</p>
-                  <p className="font-semibold">{selectedCourseInfo.code}</p>
+                  <p className="font-semibold">{getCourseCode(selectedCourseInfo) || '—'}</p>
                 </div>
                 <div>
                   <p className="text-green-100 text-xs mb-1">Section</p>
@@ -424,7 +430,7 @@ export default function Dashboard() {
                       <p className="text-2xl font-bold text-amber-800 mb-1">{rankedStudents[0].name}</p>
                       <p className="text-amber-700">
                         {selectedCourse !== 'all' && selectedCourseInfo
-                          ? `${selectedCourseInfo.code}${selectedCourseInfo.section ? ` Section ${selectedCourseInfo.section}` : ''} • `
+                          ? `${getCourseCode(selectedCourseInfo) || getCourseName(selectedCourseInfo)}${selectedCourseInfo.section ? ` Section ${selectedCourseInfo.section}` : ''} • `
                           : ''}
                         Average Grade: <span className="font-semibold">{rankedStudents[0].averageGrade || 0}%</span> •{' '}
                         {rankedStudents[0].completedAssessments || 0}/{rankedStudents[0].totalAssessments || 0} Assessments Completed
@@ -730,8 +736,8 @@ export default function Dashboard() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-lg">{course.code}</CardTitle>
-                        <CardDescription className="text-sm mt-1">{course.name}</CardDescription>
+                        <CardTitle className="text-lg">{getCourseCode(course) || getCourseName(course) || '—'}</CardTitle>
+                        <CardDescription className="text-sm mt-1">{getCourseName(course) || 'Untitled Course'}</CardDescription>
                       </div>
                       <Badge variant="outline" className="ml-2">
                         {course.section ? `Sec ${course.section}` : 'Section —'}

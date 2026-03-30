@@ -19,8 +19,13 @@ return new class extends Migration
             $table->text('description')->nullable()->after('state');
         });
 
-        // Make type nullable so Google Classroom imports (which don't have quiz/exam) work
-        \Illuminate\Support\Facades\DB::statement("ALTER TABLE assessments MODIFY `type` ENUM('quiz','exam') NULL DEFAULT NULL");
+        // Make type nullable so Google Classroom imports (which don't have quiz/exam) work.
+        $driver = Schema::getConnection()->getDriverName();
+        if ($driver === 'mysql') {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE assessments MODIFY `type` ENUM('quiz','exam') NULL DEFAULT NULL");
+        } elseif ($driver === 'pgsql') {
+            \Illuminate\Support\Facades\DB::statement('ALTER TABLE assessments ALTER COLUMN "type" DROP NOT NULL');
+        }
 
         Schema::table('submissions', function (Blueprint $table) {
             $table->string('google_classroom_id')->nullable()->after('id');

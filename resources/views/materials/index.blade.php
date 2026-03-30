@@ -2,7 +2,7 @@
 
 @section('content')
 <div class="container">
-    <h1>Materials for Course {{ $courseId }}</h1>
+    <h1>Materials for {{ $courseLabel ?? 'Course' }}</h1>
 
     @if($materials->count())
         <ul>

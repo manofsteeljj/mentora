@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { Progress } from './ui/progress'
+import { formatCourseLabel } from '../lib/courseDisplay'
 
 export default function ClassRecord() {
   const [courses, setCourses] = useState([])
@@ -77,7 +78,7 @@ export default function ClassRecord() {
   const courseOptions = useMemo(() => {
     return courses.map(c => ({
       id: String(c.id),
-      label: `${c.course_code} - ${c.course_name}${c.section ? ` (Section ${c.section})` : ''}`,
+      label: formatCourseLabel(c),
     }))
   }, [courses])
 
