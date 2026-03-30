@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Badge } from './ui/badge'
-import { Send, Bot, User, Loader2, FileText } from 'lucide-react'
+import { Send, Bot, User, Loader2, FileText, Download } from 'lucide-react'
+import { toast } from 'sonner'
 import ContextPanel from './ContextPanel'
 
 let nextId = 1
@@ -14,6 +15,75 @@ function generateId() {
 
 function formatTime() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function extractQuestionBlocks(content) {
+  const text = String(content || '').replace(/\r\n/g, '\n').trim()
+  if (!text) return ''
+
+  const normalized = text
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, ''))
+    .replace(/^#+\s+/gm, '')
+    .replace(/^[-*]\s+/gm, '')
+
+  const regex = /(?:^|\n)(?:Q\s*\d+[\):.-]?|\d+[\).:-])\s*[\s\S]*?(?=(?:\n(?:Q\s*\d+[\):.-]?|\d+[\).:-])\s*)|$)/gim
+  const matches = normalized.match(regex) || []
+  const cleaned = matches
+    .map((m) => m.trim())
+    .filter((m) => m && /\?/m.test(m))
+
+  if (cleaned.length > 0) {
+    return cleaned.join('\n\n')
+  }
+
+  const paragraphs = normalized
+    .split(/\n\s*\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter((p) => /\?/m.test(p))
+
+  return paragraphs.join('\n\n')
+}
+
+async function downloadResponseDocx(message) {
+  const extracted = extractQuestionBlocks(message?.content)
+  if (!extracted) {
+    toast.error('No question set detected in this response.')
+    return
+  }
+
+  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+  const resp = await fetch('/api/chat/export-docx', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'X-CSRF-TOKEN': token,
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      title: 'Generated Questions',
+      content: extracted,
+    }),
+  })
+
+  if (!resp.ok) {
+    throw new Error(`Failed to export DOCX (HTTP ${resp.status})`)
+  }
+
+  const blob = await resp.blob()
+  const disposition = resp.headers.get('content-disposition') || ''
+  const match = disposition.match(/filename="?([^";]+)"?/i)
+  const fileName = match?.[1] || 'generated_questions.docx'
+
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export default function ChatInterface({ conversationId = null, onConversationCreated }) {
@@ -350,6 +420,27 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                           </Badge>
                         )
                       })}
+                    </div>
+                  )}
+                  {message.role === 'assistant' && !isLoading && message.content && (
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={async () => {
+                          try {
+                            await downloadResponseDocx(message)
+                            toast.success('Questions downloaded as DOCX')
+                          } catch {
+                            toast.error('DOCX download failed')
+                          }
+                        }}
+                      >
+                        <Download className="w-3 h-3 mr-1" />
+                        Download Questions (.docx)
+                      </Button>
                     </div>
                   )}
                 </div>

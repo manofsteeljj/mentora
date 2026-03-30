@@ -37,6 +37,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->
 
 // Show an assessment and its questions
 Route::get('/assessments/{id}', [AssessmentController::class, 'show'])->name('assessments.show');
+Route::get('/assessments/{id}/export-docx', [AssessmentController::class, 'exportDocx'])
+    ->middleware('auth')
+    ->name('assessments.export.docx');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -49,6 +52,7 @@ Route::middleware('auth')->group(function () {
 
     // AI Chat API
     Route::post('/api/chat', [ChatController::class, 'send'])->name('chat.send');
+    Route::post('/api/chat/export-docx', [ChatController::class, 'exportDocx'])->name('chat.exportDocx');
     Route::get('/api/chat/conversations', [ChatController::class, 'conversations'])->name('chat.conversations');
     Route::get('/api/chat/history/{conversationId?}', [ChatController::class, 'history'])->name('chat.history');
     Route::delete('/api/chat/conversations/{conversationId}', [ChatController::class, 'deleteConversation'])->name('chat.deleteConversation');
