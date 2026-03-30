@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { FileText, BookOpen, Calendar, User, ChevronDown } from 'lucide-react'
+import { formatCourseLabel } from '../lib/courseDisplay'
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -41,7 +42,7 @@ export default function ContextPanel({ onQuickAction, onCourseChange }) {
   const selectedCourse = courses.find(c => c.id === selectedCourseId)
 
   const currentCourse = selectedCourse
-    ? `${selectedCourse.course_code} - ${selectedCourse.course_name}`
+    ? formatCourseLabel(selectedCourse)
     : courses.length > 0
       ? 'All Courses'
       : 'No courses yet'
@@ -97,7 +98,7 @@ export default function ContextPanel({ onQuickAction, onCourseChange }) {
                   >
                     <option value="">All Courses</option>
                     {courses.map(c => (
-                      <option key={c.id} value={c.id}>{c.course_code} - {c.course_name}</option>
+                      <option key={c.id} value={c.id}>{formatCourseLabel(c, { includeSection: false })}</option>
                     ))}
                   </select>
                 ) : (

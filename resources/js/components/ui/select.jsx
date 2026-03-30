@@ -59,11 +59,10 @@ function SelectTrigger({ children, className, ...props }) {
   )
 }
 
-function SelectValue({ placeholder }) {
+function SelectValue({ placeholder, children }) {
   const { selected } = React.useContext(SelectContext)
-  const [label, setLabel] = useState('')
-  // The label will be set by SelectItem when it matches
-  return <span className={!selected ? 'text-gray-400' : ''}>{label || selected || placeholder}</span>
+  const display = children || selected || placeholder
+  return <span className={!selected ? 'text-gray-400' : ''}>{display}</span>
 }
 
 function SelectContent({ children, className }) {

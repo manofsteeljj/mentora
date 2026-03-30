@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog'
+import { formatCourseLabel } from '../lib/courseDisplay'
 
 export default function GradingSystem() {
   const [courses, setCourses] = useState([])
@@ -285,12 +286,16 @@ export default function GradingSystem() {
             <CardContent>
               <Select value={selectedCourse} onValueChange={setSelectedCourse}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select course">
+                    {selectedCourseInfo
+                      ? formatCourseLabel(selectedCourseInfo, { includeSection: false })
+                      : 'Select course'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
-                      {(c.course_name || 'Untitled Course')}{c.course_code ? ` (${c.course_code})` : ''}
+                      {formatCourseLabel(c, { includeSection: false })}
                     </SelectItem>
                   ))}
                 </SelectContent>
