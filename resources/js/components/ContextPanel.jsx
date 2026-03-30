@@ -60,6 +60,10 @@ export default function ContextPanel({ onQuickAction, onCourseChange }) {
     { emoji: '📄', label: 'Summarize Materials', message: 'Summarize the key concepts from my course materials' },
     { emoji: '📚', label: 'Create Study Guide', message: 'Create a comprehensive study guide from my course materials' },
     { emoji: '🎯', label: 'Lesson Plan', message: 'Create a detailed lesson plan for my current course topic' },
+    { emoji: '🧩', label: 'Build Rubric', message: 'Create a grading rubric for an assignment with clear criteria and point breakdown' },
+    { emoji: '🗂️', label: 'Exam Blueprint', message: 'Create an exam blueprint (topics, difficulty, number of items, and time estimate) for my course' },
+    { emoji: '💡', label: 'Activity Ideas', message: 'Suggest 5 engaging in-class activities related to my current course materials, with time estimates' },
+    { emoji: '📣', label: 'Draft Announcement', message: 'Draft a short class announcement (professional tone) about an upcoming quiz/assignment and reminders' },
   ]
 
   return (

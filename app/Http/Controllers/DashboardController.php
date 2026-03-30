@@ -38,35 +38,51 @@ class DashboardController extends Controller
 
         if ($courseIds->isNotEmpty()) {
             $studentRows = Student::whereIn('course_id', $courseIds)
+                ->select(['id', 'course_id', 'name', 'email', 'student_number'])
                 ->with(['course:id,course_code,course_name,section'])
                 ->get();
 
+            $studentIds = $studentRows->pluck('id');
+
+            $assessmentCountsByCourse = Assessment::whereIn('course_id', $courseIds)
+                ->select('course_id', DB::raw('COUNT(*) as cnt'))
+                ->groupBy('course_id')
+                ->pluck('cnt', 'course_id');
+
+            $submissionCountsByStudent = $studentIds->isNotEmpty()
+                ? Submission::whereIn('student_id', $studentIds)
+                    ->select('student_id', DB::raw('COUNT(*) as cnt'))
+                    ->groupBy('student_id')
+                    ->pluck('cnt', 'student_id')
+                : collect();
+
+            $gradeAggByStudent = $studentIds->isNotEmpty()
+                ? DB::table('grades')
+                    ->join('submissions', 'grades.submission_id', '=', 'submissions.id')
+                    ->join('questions', 'grades.question_id', '=', 'questions.id')
+                    ->whereIn('submissions.student_id', $studentIds)
+                    ->select(
+                        'submissions.student_id',
+                        DB::raw('SUM(COALESCE(grades.score, 0)) as total_score'),
+                        DB::raw('SUM(COALESCE(questions.points, 0)) as total_points')
+                    )
+                    ->groupBy('submissions.student_id')
+                    ->get()
+                    ->keyBy('student_id')
+                : collect();
+
             foreach ($studentRows as $s) {
-                $courseAssessmentCount = Assessment::where('course_id', $s->course_id)->count();
+                $courseAssessmentCount = (int) ($assessmentCountsByCourse[$s->course_id] ?? 0);
+                $completedAssessments = (int) ($submissionCountsByStudent[$s->id] ?? 0);
 
-                // Get this student's submissions
-                $submissions = Submission::where('student_id', $s->id)->get();
-                $completedAssessments = $submissions->count();
-
-                // Calculate average grade across all graded questions
-                $totalScore = 0;
-                $totalPoints = 0;
-                foreach ($submissions as $sub) {
-                    $grades = Grade::where('submission_id', $sub->id)
-                        ->join('questions', 'grades.question_id', '=', 'questions.id')
-                        ->select('grades.score', 'questions.points')
-                        ->get();
-                    foreach ($grades as $g) {
-                        $totalScore += (int) $g->score;
-                        $totalPoints += (int) $g->points;
-                    }
-                }
+                $agg = $gradeAggByStudent[$s->id] ?? null;
+                $totalScore = (int) ($agg->total_score ?? 0);
+                $totalPoints = (int) ($agg->total_points ?? 0);
 
                 $averageGrade = $totalPoints > 0
                     ? round(($totalScore / $totalPoints) * 100)
                     : 0;
 
-                // Determine status
                 $status = 'no-data';
                 if ($totalPoints > 0) {
                     if ($averageGrade >= 90) $status = 'excellent';

@@ -24,7 +24,7 @@ function formatTimeAgo(isoString) {
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
-export default function MyCourses({ onViewMaterials }) {
+export default function MyCourses({ onViewMaterials, onCreateCourse }) {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -331,7 +331,7 @@ export default function MyCourses({ onViewMaterials }) {
                 Add a new course to your teaching schedule
               </p>
             </div>
-            <Button className="bg-green-700 hover:bg-green-800">
+            <Button className="bg-green-700 hover:bg-green-800" onClick={() => onCreateCourse?.()}>
               Create Course
             </Button>
           </CardContent>

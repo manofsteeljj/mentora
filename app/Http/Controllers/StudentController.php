@@ -90,4 +90,45 @@ class StudentController extends Controller
             'total'    => $students->count(),
         ]);
     }
+
+    /**
+     * Import students into a specific course (JSON payload).
+     * Used by the Dashboard Excel import.
+     */
+    public function import(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'course_id' => ['required', 'integer', 'exists:courses,id'],
+            'students' => ['required', 'array', 'min:1'],
+            'students.*.student_number' => ['required', 'string', 'max:255'],
+            'students.*.name' => ['required', 'string', 'max:255'],
+            'students.*.email' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $course = Course::where('id', $data['course_id'])
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $imported = 0;
+        $updated = 0;
+
+        foreach ($data['students'] as $row) {
+            $student = Student::updateOrCreate(
+                ['course_id' => $course->id, 'student_number' => $row['student_number']],
+                ['name' => $row['name'], 'email' => $row['email'] ?? null]
+            );
+
+            if ($student->wasRecentlyCreated) {
+                $imported++;
+            } else {
+                $updated++;
+            }
+        }
+
+        return response()->json([
+            'imported' => $imported,
+            'updated' => $updated,
+            'total' => $imported + $updated,
+        ]);
+    }
 }

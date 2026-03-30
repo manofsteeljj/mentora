@@ -1,16 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react'
 import Sidebar from './Sidebar'
-import Dashboard from './Dashboard'
-import ChatInterface from './ChatInterface'
-import CourseMaterials from './CourseMaterials'
-import MyCourses from './MyCourses'
-import CourseMaterialsViewer from './CourseMaterialsViewer'
-import GradingSystem from './GradingSystem'
-import ClassRecord from './ClassRecord'
-import Attendance from './Attendance'
-import Students from './Students'
-import Settings from './Settings'
-import Profile from './Profile'
+import { Toaster } from 'sonner'
+
+const Dashboard = lazy(() => import('./Dashboard'))
+const ChatInterface = lazy(() => import('./ChatInterface'))
+const CourseMaterials = lazy(() => import('./CourseMaterials'))
+const MyCourses = lazy(() => import('./MyCourses'))
+const CreateCourse = lazy(() => import('./CreateCourse'))
+const CourseMaterialsViewer = lazy(() => import('./CourseMaterialsViewer'))
+const GradingSystem = lazy(() => import('./GradingSystem'))
+const ClassRecord = lazy(() => import('./ClassRecord'))
+const Attendance = lazy(() => import('./Attendance'))
+const Students = lazy(() => import('./Students'))
+const Settings = lazy(() => import('./Settings'))
+const Profile = lazy(() => import('./Profile'))
 
 function getToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -100,9 +103,27 @@ export default function DashboardLayout() {
       case 'materials':
         return <CourseMaterials />
       case 'courses':
-        return <MyCourses onViewMaterials={handleOpenCourseMaterials} />
+        return (
+          <MyCourses
+            onViewMaterials={handleOpenCourseMaterials}
+            onCreateCourse={() => setActiveView('create-course')}
+          />
+        )
+      case 'create-course':
+        return (
+          <CreateCourse
+            onBack={() => setActiveView('courses')}
+          />
+        )
       case 'course-materials-viewer':
-        if (!selectedCourseForMaterials) return <MyCourses onViewMaterials={handleOpenCourseMaterials} />
+        if (!selectedCourseForMaterials) {
+          return (
+            <MyCourses
+              onViewMaterials={handleOpenCourseMaterials}
+              onCreateCourse={() => setActiveView('create-course')}
+            />
+          )
+        }
         return (
           <CourseMaterialsViewer
             courseId={selectedCourseForMaterials.id}
@@ -133,6 +154,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      <Toaster richColors position="top-right" />
       <Sidebar
         activeView={activeView}
         onViewChange={handleViewChange}
@@ -145,7 +167,9 @@ export default function DashboardLayout() {
         onDeleteConversation={handleDeleteConversation}
       />
       <main className="flex-1 overflow-y-auto">
-        {renderContent()}
+        <Suspense fallback={<div className="p-6 text-gray-600">Loading...</div>}>
+          {renderContent()}
+        </Suspense>
       </main>
     </div>
   )
