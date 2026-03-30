@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
+import { toast } from 'sonner'
 import {
   User,
   Search,
@@ -17,7 +18,10 @@ import {
   ChevronDown,
   ChevronUp,
   BarChart3,
-  GraduationCap
+  GraduationCap,
+  Upload,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react'
 import { Progress } from './ui/progress'
 
@@ -28,32 +32,48 @@ function getToken() {
 export default function Students() {
   const [students, setStudents] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState('All Courses')
+  const [selectedCourse, setSelectedCourse] = useState('all')
   const [expandedStudents, setExpandedStudents] = useState(new Set())
   const [sortBy, setSortBy] = useState('name')
   const [loading, setLoading] = useState(true)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    let cancelled = false
+  const fileInputRef = useRef(null)
+  const xlsxModuleRef = useRef(null)
 
-    async function load() {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/students', {
-          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
-          credentials: 'same-origin',
-        })
-        if (!res.ok) throw new Error('Failed to load students')
-        const data = await res.json()
+  const loadXlsx = useCallback(async () => {
+    if (xlsxModuleRef.current) return xlsxModuleRef.current
+    const mod = await import('xlsx')
+    xlsxModuleRef.current = mod
+    return mod
+  }, [])
 
-        const mapped = (data.students || []).map((s) => ({
+  const fetchStudents = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/students', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      })
+      if (!res.ok) throw new Error('Failed to load students')
+      const data = await res.json()
+
+      const mapped = (data.students || []).map((s) => {
+        const courseCode = s.course?.course_code || ''
+        const courseName = s.course?.course_name || ''
+        const courseLabel = courseCode && courseName
+          ? `${courseCode} - ${courseName}`
+          : (courseCode || courseName || '—')
+
+        return {
           id: String(s.id),
           name: s.name || 'Unknown',
-          studentId: s.studentNumber || String(s.id),
+          studentId: s.studentNumber || s.student_number || String(s.id),
           email: s.email || null,
           photoUrl: s.photoUrl || null,
-          course: s.course?.course_code || s.course?.course_name || '—',
+          courseId: s.course?.id ? String(s.course.id) : '',
+          courseLabel,
           section: s.course?.section || '',
           activities: (s.activities || []).map((a) => ({
             id: a.id || a.assessmentId,
@@ -66,26 +86,154 @@ export default function Students() {
             state: a.state,
             late: a.late,
           })),
-        }))
-
-        if (!cancelled) {
-          setStudents(mapped)
-          setError(null)
         }
-      } catch (err) {
-        console.error(err)
-        if (!cancelled) setError(err.message)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
+      })
 
-    load()
-    return () => { cancelled = true }
+      setStudents(mapped)
+      setError(null)
+    } catch (err) {
+      console.error(err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Get unique courses
-  const courses = useMemo(() => ['All Courses', ...Array.from(new Set(students.map(s => s.course).filter(Boolean)) )], [students])
+  useEffect(() => {
+    fetchStudents().catch(() => {})
+  }, [fetchStudents])
+
+  const courseOptions = useMemo(() => {
+    const byId = new Map()
+    students.forEach((s) => {
+      if (!s.courseId) return
+      const label = s.section ? `${s.courseLabel} (Section ${s.section})` : s.courseLabel
+      if (!byId.has(s.courseId)) byId.set(s.courseId, label)
+    })
+
+    return [
+      { id: 'all', label: 'All Courses' },
+      ...Array.from(byId.entries()).map(([id, label]) => ({ id, label })),
+    ]
+  }, [students])
+
+  const selectedCourseOption = useMemo(
+    () => courseOptions.find((c) => c.id === selectedCourse),
+    [courseOptions, selectedCourse]
+  )
+
+  const parseStudentsFromWorksheet = (xlsx, worksheet) => {
+    const rows = xlsx.utils.sheet_to_json(worksheet, { defval: '' })
+    if (!Array.isArray(rows) || rows.length === 0) return []
+
+    const normalizeHeader = (value) => {
+      return String(value || '').trim().toLowerCase().replace(/\s+/g, '_')
+    }
+
+    return rows
+      .map((row) => {
+        const normalized = {}
+        for (const [k, v] of Object.entries(row)) {
+          normalized[normalizeHeader(k)] = v
+        }
+
+        const studentNumber = String(
+          normalized.student_number ??
+            normalized.studentnumber ??
+            normalized.id_number ??
+            normalized.student_id ??
+            normalized.studentid ??
+            ''
+        ).trim()
+
+        const name = String(normalized.name ?? normalized.full_name ?? normalized.fullname ?? '').trim()
+        const email = String(normalized.email ?? '').trim()
+
+        if (!studentNumber || !name) return null
+        return { student_number: studentNumber, name, email: email || null }
+      })
+      .filter(Boolean)
+  }
+
+  const handleImportClick = () => {
+    if (selectedCourse === 'all') {
+      toast.error('Select a specific course before importing students.')
+      return
+    }
+    fileInputRef.current?.click?.()
+  }
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    event.target.value = ''
+    setImporting(true)
+
+    try {
+      const XLSX = await loadXlsx()
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data)
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      const rows = parseStudentsFromWorksheet(XLSX, worksheet)
+
+      if (rows.length === 0) {
+        toast.error('No valid rows found. Required: student_number (or student id) and name.')
+        return
+      }
+
+      const resp = await fetch('/api/students/import', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': getToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          course_id: Number(selectedCourse),
+          students: rows,
+        }),
+      })
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null)
+        toast.error(err?.message || 'Import failed')
+        return
+      }
+
+      const result = await resp.json().catch(() => null)
+      toast.success(`Imported ${result?.imported ?? 0}, updated ${result?.updated ?? 0} students`)
+      await fetchStudents()
+    } catch {
+      toast.error('Failed to import students')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleExportStudents = async () => {
+    try {
+      const XLSX = await loadXlsx()
+      const rows = filteredStudents.map((s) => ({
+        student_number: s.studentId || '',
+        name: s.name || '',
+        email: s.email || '',
+        course: s.courseLabel || '',
+        section: s.section || '',
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(rows)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students')
+      const fileTag = selectedCourse === 'all' ? 'all-courses' : `course-${selectedCourse}`
+      XLSX.writeFile(workbook, `students_${fileTag}.xlsx`)
+      toast.success('Students exported successfully')
+    } catch {
+      toast.error('Export failed')
+    }
+  }
 
   const calculateWeightedAverage = (activities) => {
     const totalWeight = activities.reduce((sum, a) => sum + (a.weight || 0), 0)
@@ -106,8 +254,8 @@ export default function Students() {
   const getFilteredStudents = () => {
     let filtered = students
 
-    if (selectedCourse !== 'All Courses') {
-      filtered = filtered.filter(s => s.course === selectedCourse)
+    if (selectedCourse !== 'all') {
+      filtered = filtered.filter(s => s.courseId === selectedCourse)
     }
 
     if (searchQuery) {
@@ -207,7 +355,7 @@ export default function Students() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{totalStudents}</div>
-              <p className="text-xs text-gray-600 mt-1">{selectedCourse === 'All Courses' ? 'across all courses' : `in ${selectedCourse}`}</p>
+              <p className="text-xs text-gray-600 mt-1">{selectedCourse === 'all' ? 'across all courses' : `in ${selectedCourseOption?.label || 'selected course'}`}</p>
             </CardContent>
           </Card>
 
@@ -253,6 +401,17 @@ export default function Students() {
 
         <Card className="mb-6">
           <CardContent className="pt-6">
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+            <div className="mb-4 flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={handleImportClick} disabled={importing}>
+                <Upload className="w-4 h-4 mr-2" />
+                {importing ? 'Importing...' : 'Import Students'}
+              </Button>
+              <Button onClick={handleExportStudents} className="bg-green-700 hover:bg-green-800">
+                <Download className="w-4 h-4 mr-2" />
+                Export Students
+              </Button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -262,8 +421,8 @@ export default function Students() {
               <div className="relative">
                 <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                  {courses.map(course => (
-                    <option key={course} value={course}>{course}</option>
+                  {courseOptions.map(course => (
+                    <option key={course.id} value={course.id}>{course.label}</option>
                   ))}
                 </select>
               </div>
@@ -321,7 +480,7 @@ export default function Students() {
                         <div className="flex items-center gap-3 ml-12 text-sm">
                           <Badge className="bg-blue-100 text-blue-800">
                             <BookOpen className="w-3 h-3 mr-1" />
-                            {student.course}
+                            {student.courseLabel}
                           </Badge>
                           <Badge variant="outline">{student.section}</Badge>
                         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Trophy,
   AlertTriangle,
@@ -9,9 +9,6 @@ import {
   BarChart3,
   BookOpen,
   Filter,
-  Upload,
-  Download,
-  FileSpreadsheet,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
@@ -52,30 +49,12 @@ function getStatusBadge(status) {
   }
 }
 
-function normalizeHeader(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-}
-
 export default function Dashboard() {
   const [courses, setCourses] = useState([])
   const [allStudents, setAllStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCourse, setSelectedCourse] = useState('all')
   const [selectedView, setSelectedView] = useState('overview')
-  const [importing, setImporting] = useState(false)
-
-  const fileInputRef = useRef(null)
-  const xlsxModuleRef = useRef(null)
-
-  const loadXlsx = useCallback(async () => {
-    if (xlsxModuleRef.current) return xlsxModuleRef.current
-    const mod = await import('xlsx')
-    xlsxModuleRef.current = mod
-    return mod
-  }, [])
 
   const fetchDashboard = useCallback(async () => {
     const res = await fetch('/api/dashboard', {
@@ -204,116 +183,6 @@ export default function Dashboard() {
     })
   }, [courses, allStudents])
 
-  const openImportPicker = () => {
-    if (selectedCourse === 'all') {
-      toast.error('Select a specific course before importing students.')
-      return
-    }
-    fileInputRef.current?.click?.()
-  }
-
-  const parseStudentsFromWorksheet = (xlsx, worksheet) => {
-    const rows = xlsx.utils.sheet_to_json(worksheet, { defval: '' })
-    if (!Array.isArray(rows) || rows.length === 0) return []
-
-    return rows
-      .map((row) => {
-        const normalized = {}
-        for (const [k, v] of Object.entries(row)) {
-          normalized[normalizeHeader(k)] = v
-        }
-
-        const studentNumber = String(
-          normalized.student_number ??
-            normalized.studentnumber ??
-            normalized.id_number ??
-            normalized.student_id ??
-            normalized.studentid ??
-            ''
-        ).trim()
-
-        const name = String(normalized.name ?? normalized.full_name ?? normalized.fullname ?? '').trim()
-        const email = String(normalized.email ?? '').trim()
-
-        if (!studentNumber || !name) return null
-        return { student_number: studentNumber, name, email: email || null }
-      })
-      .filter(Boolean)
-  }
-
-  const handleFileUpload = async (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // allow re-uploading the same file
-    event.target.value = ''
-
-    setImporting(true)
-    try {
-      const XLSX = await loadXlsx()
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data)
-      const firstSheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[firstSheetName]
-      const studentsToImport = parseStudentsFromWorksheet(XLSX, worksheet)
-
-      if (studentsToImport.length === 0) {
-        toast.error('No valid rows found. Required columns: student_number (or student id) and name.')
-        return
-      }
-
-      const resp = await fetch('/api/students/import', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': getToken(),
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          course_id: Number(selectedCourse),
-          students: studentsToImport,
-        }),
-      })
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => null)
-        toast.error(err?.message || 'Import failed')
-        return
-      }
-
-      const result = await resp.json().catch(() => null)
-      toast.success(`Imported ${result?.imported ?? 0}, updated ${result?.updated ?? 0} students`)
-      await fetchDashboard()
-    } catch {
-      toast.error('Failed to read file')
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const handleFileDownload = () => {
-    ;(async () => {
-      try {
-        const XLSX = await loadXlsx()
-        const exportRows = (selectedCourse === 'all' ? allStudents : students).map((s) => ({
-          student_number: s.studentNumber || '',
-          name: s.name || '',
-          email: s.email || '',
-          course_code: s.courseCode || '',
-          section: s.section || '',
-        }))
-
-        const worksheet = XLSX.utils.json_to_sheet(exportRows)
-        const workbook = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Students')
-        XLSX.writeFile(workbook, `students_${selectedCourse === 'all' ? 'all' : selectedCourse}.xlsx`)
-        toast.success('Students data exported successfully!')
-      } catch {
-        toast.error('Export failed')
-      }
-    })()
-  }
 
   if (loading) {
     return (
@@ -327,8 +196,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 overflow-auto bg-gray-50">
-      <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileUpload} />
-
       <div className="p-6 max-w-[1600px] mx-auto">
         <div className="mb-6 bg-gradient-to-r from-green-700 to-emerald-600 text-white p-6 rounded-lg shadow-lg">
           <div className="flex items-center justify-between mb-4">
@@ -338,21 +205,6 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
-                variant="secondary"
-                className="bg-white/90 hover:bg-white text-gray-900"
-                onClick={openImportPicker}
-                disabled={importing}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {importing ? 'Importing...' : 'Import Students'}
-              </Button>
-
-              <Button variant="secondary" className="bg-white/90 hover:bg-white text-gray-900" onClick={handleFileDownload}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-
               <Filter className="w-5 h-5" />
               <Select value={selectedCourse} onValueChange={setSelectedCourse}>
                 <SelectTrigger className="w-64 bg-white text-gray-900">
@@ -395,11 +247,6 @@ export default function Dashboard() {
                   <p className="text-green-100 text-xs mb-1">Materials</p>
                   <p className="font-semibold">{selectedCourseInfo.materialCount ?? 0}</p>
                 </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 text-xs text-green-50 opacity-90">
-                <FileSpreadsheet className="w-4 h-4" />
-                Import expects columns: student_number, name, email (optional)
               </div>
             </div>
           )}
