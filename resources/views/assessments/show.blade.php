@@ -2,7 +2,12 @@
 
 @section('content')
 <div class="container">
-    <h1>Assessment #{{ $assessment->id }} @if($assessment->title) - {{ $assessment->title }} @endif</h1>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="mb-0">Assessment #{{ $assessment->id }} @if($assessment->title) - {{ $assessment->title }} @endif</h1>
+        <a href="{{ route('assessments.export.docx', ['id' => $assessment->id]) }}" class="btn btn-success">
+            Export DOCX
+        </a>
+    </div>
 
     @if(isset($material) && $material)
         <div class="card mb-3">
