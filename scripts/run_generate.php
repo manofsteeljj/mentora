@@ -27,29 +27,61 @@ echo "Using material {$material->id} (course {$material->course_id}), assessment
 
 $prompt = "Generate 5 multiple choice questions (with 4 options each and correct answer) based on the following text:\n\n" . ($material->extracted_text ?? '');
 
-$baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
-$path = ltrim(env('LOCAL_AI_PATH', 'api/generate'), '/');
-$model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+$provider = strtolower((string) env('AI_PROVIDER', 'openrouter'));
+$timeout = intval(env('AI_TIMEOUT', env('LOCAL_AI_TIMEOUT', 120)));
+$retries = intval(env('AI_RETRIES', env('LOCAL_AI_RETRIES', 2)));
+$headers = [];
 
-$url = $baseUrl . '/' . $path;
+if ($provider === 'openrouter') {
+    $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+    $url = $baseUrl . '/chat/completions';
+    $apiKey = (string) config('services.openrouter.api_key', '');
 
-$payload = [
-    'model' => $model,
-    'prompt' => $prompt,
-    'max_tokens' => 800,
-];
+    if ($apiKey === '') {
+        echo "OPENROUTER_API_KEY is not configured.\n";
+        exit(1);
+    }
 
-$timeout = intval(env('LOCAL_AI_TIMEOUT', 120));
-$retries = intval(env('LOCAL_AI_RETRIES', 2));
+    $headers = [
+        'Authorization' => 'Bearer ' . $apiKey,
+        'HTTP-Referer' => (string) config('services.openrouter.site_url', config('app.url')),
+        'X-Title' => (string) config('services.openrouter.app_name', config('app.name', 'Mentora')),
+    ];
 
-echo "Posting to local AI: {$url} (model={$model}) timeout={$timeout}s retries={$retries}\n";
+    $model = (string) config('services.openrouter.model', 'google/gemma-3-12b-it:free');
+    $payload = [
+        'model' => $model,
+        'messages' => [
+            ['role' => 'user', 'content' => $prompt],
+        ],
+        'temperature' => 0.7,
+        'max_tokens' => 800,
+    ];
+} else {
+    $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
+    $path = ltrim(env('LOCAL_AI_PATH', 'api/generate'), '/');
+    $model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+    $url = $baseUrl . '/' . $path;
+    $payload = [
+        'model' => $model,
+        'prompt' => $prompt,
+        'max_tokens' => 800,
+    ];
+}
+
+echo "Posting to AI provider {$provider}: {$url} (model={$model}) timeout={$timeout}s retries={$retries}\n";
 
 $attempt = 0;
 $resp = null;
 while ($attempt <= $retries) {
     $attempt++;
     try {
-        $resp = Http::timeout($timeout)->post($url, $payload);
+        $request = Http::timeout($timeout);
+        if (!empty($headers)) {
+            $request = $request->withHeaders($headers);
+        }
+
+        $resp = $request->post($url, $payload);
         if (! $resp->failed()) {
             break;
         }
@@ -65,7 +97,7 @@ while ($attempt <= $retries) {
 }
 
 if (! $resp || $resp->failed()) {
-    echo "Local AI request failed after {$attempt} attempts.\n";
+    echo "AI provider request failed ({$provider}) after {$attempt} attempts.\n";
     if ($resp) { print_r($resp->body()); }
     exit(1);
 }

@@ -14,37 +14,68 @@ class AIController extends Controller
     public function generateQuestions($materialId, $assessmentId)
     {
         if (function_exists('set_time_limit')) {
-            // allow longer running requests when calling local models
-            @set_time_limit(intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
-            @ini_set('max_execution_time', intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
+            // allow longer running requests for external or local model providers
+            $executionTime = intval(env('AI_EXECUTION_TIME', env('LOCAL_AI_EXECUTION_TIME', 300)));
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', $executionTime);
         }
         $material = Material::findOrFail($materialId);
         $assessment = Assessment::findOrFail($assessmentId);
         $prompt = "Generate 5 multiple choice questions (with 4 options each and correct answer) based on the following text:\n\n" . ($material->extracted_text ?? '');
 
-        // Local AI server settings (configure in .env)
-        $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
-        $path = ltrim(env('LOCAL_AI_PATH', 'api/generate'), '/');
-        $model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+        $provider = mb_strtolower((string) env('AI_PROVIDER', 'openrouter'));
+        $timeout = intval(env('AI_TIMEOUT', env('LOCAL_AI_TIMEOUT', 120)));
+        $retries = intval(env('AI_RETRIES', env('LOCAL_AI_RETRIES', 2)));
+        $headers = [];
 
-        $url = $baseUrl . '/' . $path;
+        if ($provider === 'openrouter') {
+            $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+            $url = $baseUrl . '/chat/completions';
+            $apiKey = (string) config('services.openrouter.api_key', '');
 
-        $payload = [
-            'model' => $model,
-            'prompt' => $prompt,
-            'max_tokens' => 800,
-        ];
+            if ($apiKey === '') {
+                return redirect()->back()->with('error', 'OPENROUTER_API_KEY is not configured on the server.');
+            }
 
-        // POST to local server (no API key by default)
-        $timeout = intval(env('LOCAL_AI_TIMEOUT', 120));
-        $retries = intval(env('LOCAL_AI_RETRIES', 2));
+            $headers = [
+                'Authorization' => 'Bearer ' . $apiKey,
+                'HTTP-Referer' => (string) config('services.openrouter.site_url', config('app.url')),
+                'X-Title' => (string) config('services.openrouter.app_name', config('app.name', 'Mentora')),
+            ];
+
+            $payload = [
+                'model' => (string) config('services.openrouter.model', 'google/gemma-3-12b-it:free'),
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 800,
+            ];
+        } else {
+            $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
+            $path = ltrim(env('LOCAL_AI_PATH', 'api/generate'), '/');
+            $model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+
+            $url = $baseUrl . '/' . $path;
+
+            $payload = [
+                'model' => $model,
+                'prompt' => $prompt,
+                'max_tokens' => 800,
+            ];
+        }
 
         $attempt = 0;
         $resp = null;
         while ($attempt <= $retries) {
             $attempt++;
             try {
-                $resp = Http::timeout($timeout)->post($url, $payload);
+                $request = Http::timeout($timeout);
+                if (!empty($headers)) {
+                    $request = $request->withHeaders($headers);
+                }
+
+                $resp = $request->post($url, $payload);
                 if (! $resp->failed()) {
                     break;
                 }
@@ -58,7 +89,13 @@ class AIController extends Controller
 
         if (! $resp || $resp->failed()) {
             $msg = isset($err) ? $err : ($resp ? 'HTTP ' . $resp->status() : 'no response');
-            return redirect()->back()->with('error', 'Local AI request failed after attempts: ' . $msg);
+            if (!isset($err) && $resp) {
+                $bodySnippet = trim(mb_substr((string) $resp->body(), 0, 200));
+                if ($bodySnippet !== '') {
+                    $msg .= ' - ' . $bodySnippet;
+                }
+            }
+            return redirect()->back()->with('error', 'AI provider request failed (' . $provider . '): ' . $msg);
         }
 
         $body = null;
@@ -199,8 +236,9 @@ class AIController extends Controller
     public function generateForCourse($courseId)
     {
         if (function_exists('set_time_limit')) {
-            @set_time_limit(intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
-            @ini_set('max_execution_time', intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
+            $executionTime = intval(env('AI_EXECUTION_TIME', env('LOCAL_AI_EXECUTION_TIME', 300)));
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', $executionTime);
         }
 
         $course = Course::findOrFail($courseId);
