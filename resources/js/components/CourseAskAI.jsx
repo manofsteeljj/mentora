@@ -171,8 +171,8 @@ export function CourseAskAI({ courseId, courseName, courseCode, currentTopic, on
             ? {
                 ...m,
                 content: error?.name === 'AbortError'
-                  ? 'Sorry — the AI request timed out. Please try again, or verify the AI server is running.'
-                  : 'Sorry, I could not reach the AI service. Please make sure the AI server is running.',
+                  ? 'Sorry, the AI request timed out. Please try again in a moment.'
+                  : 'Sorry, I could not reach the AI provider right now. Please try again shortly.',
                 isLoading: false,
               }
             : m

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 class ChatController extends Controller
 {
     /**
-     * Send a message to the local Ollama AI and return the response.
+     * Send a message to the configured AI provider and return the response.
      * If no conversation_id is provided, a new conversation is created.
      */
     public function send(Request $request)
@@ -26,8 +26,9 @@ class ChatController extends Controller
         ]);
 
         if (function_exists('set_time_limit')) {
-            @set_time_limit(intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
-            @ini_set('max_execution_time', intval(env('LOCAL_AI_EXECUTION_TIME', 300)));
+            $executionTime = intval(env('AI_EXECUTION_TIME', env('LOCAL_AI_EXECUTION_TIME', 300)));
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', $executionTime);
         }
 
         $userMessage    = $request->input('message');
@@ -125,23 +126,58 @@ class ChatController extends Controller
         }
         $prompt .= "User: " . $userMessage . "\nAssistant:";
 
-        // Local AI server settings
-        $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
-        $model   = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
-        $url     = $baseUrl . '/api/generate';
+        $provider = mb_strtolower((string) env('AI_PROVIDER', 'openrouter'));
+        $timeout = intval(env('AI_TIMEOUT', env('LOCAL_AI_TIMEOUT', 120)));
+        $retries = intval(env('AI_RETRIES', env('LOCAL_AI_RETRIES', 2)));
 
-        $payload = [
-            'model'   => $model,
-            'prompt'  => $prompt,
-            'stream'  => false,
-            'options' => [
+        $headers = [];
+
+        if ($provider === 'openrouter') {
+            $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+            $url = $baseUrl . '/chat/completions';
+            $apiKey = (string) config('services.openrouter.api_key', '');
+
+            if ($apiKey === '') {
+                return response()->json([
+                    'response' => 'AI provider is not configured. Set OPENROUTER_API_KEY on the server.',
+                    'conversation_id' => $conversation->id,
+                ], 200);
+            }
+
+            $headers = [
+                'Authorization' => 'Bearer ' . $apiKey,
+                'HTTP-Referer' => (string) config('services.openrouter.site_url', config('app.url')),
+                'X-Title' => (string) config('services.openrouter.app_name', config('app.name', 'Mentora')),
+            ];
+
+            $userPrompt = $conversationContext
+                ? "Previous conversation:\n" . $conversationContext . "User: " . $userMessage
+                : $userMessage;
+
+            $payload = [
+                'model' => (string) config('services.openrouter.model', 'google/gemma-3-12b-it:free'),
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt],
+                ],
                 'temperature' => 0.7,
-                'num_predict' => 2048,
-            ],
-        ];
+                'max_tokens' => 2048,
+            ];
+        } else {
+            $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
+            $model = env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+            $url = $baseUrl . '/api/generate';
 
-        $timeout = intval(env('LOCAL_AI_TIMEOUT', 120));
-        $retries = intval(env('LOCAL_AI_RETRIES', 2));
+            $payload = [
+                'model' => $model,
+                'prompt' => $prompt,
+                'stream' => false,
+                'options' => [
+                    'temperature' => 0.7,
+                    'num_predict' => 2048,
+                ],
+            ];
+        }
 
         $attempt = 0;
         $resp    = null;
@@ -150,7 +186,12 @@ class ChatController extends Controller
         while ($attempt <= $retries) {
             $attempt++;
             try {
-                $resp = Http::timeout($timeout)->post($url, $payload);
+                $request = Http::timeout($timeout);
+                if (!empty($headers)) {
+                    $request = $request->withHeaders($headers);
+                }
+
+                $resp = $request->post($url, $payload);
                 if (!$resp->failed()) {
                     break;
                 }
@@ -164,8 +205,14 @@ class ChatController extends Controller
 
         if (!$resp || $resp->failed()) {
             $msg = $err ?? ($resp ? 'HTTP ' . $resp->status() : 'no response');
+            if (!$err && $resp) {
+                $bodySnippet = trim(mb_substr((string) $resp->body(), 0, 200));
+                if ($bodySnippet !== '') {
+                    $msg .= ' - ' . $bodySnippet;
+                }
+            }
             return response()->json([
-                'response'        => 'Sorry, I could not connect to the AI model. Please make sure Ollama is running. Error: ' . $msg,
+                'response'        => 'Sorry, I could not connect to the AI provider (' . $provider . '). Error: ' . $msg,
                 'conversation_id' => $conversation->id,
             ], 200);
         }
@@ -572,7 +619,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Extract the response text from the Ollama HTTP response.
+     * Extract the response text from provider HTTP responses.
      */
     private function extractResponse($resp): string
     {

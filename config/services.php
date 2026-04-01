@@ -39,6 +39,14 @@ return [
         'key' => env('OPENAI_API_KEY'),
     ],
 
+    'openrouter' => [
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'google/gemma-3-12b-it:free'),
+        'site_url' => env('OPENROUTER_SITE_URL', env('APP_URL')),
+        'app_name' => env('OPENROUTER_APP_NAME', env('APP_NAME', 'Mentora')),
+    ],
+
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

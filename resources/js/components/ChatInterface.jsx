@@ -279,7 +279,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       const errorMessage = {
         id: generateId(),
         role: 'assistant',
-        content: 'Sorry, there was an error connecting to the AI. Please make sure Ollama is running and try again.',
+        content: 'Sorry, there was an error connecting to the AI provider. Please try again in a moment.',
         timestamp: formatTime(),
       }
       setMessages(prev => [...prev, errorMessage])
