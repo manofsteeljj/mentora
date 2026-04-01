@@ -7,6 +7,10 @@ PORT="${PORT:-80}"
 sed -ri "s/^Listen 80$/Listen ${PORT}/" /etc/apache2/ports.conf
 sed -ri "s/:80>/:${PORT}>/g" /etc/apache2/sites-available/000-default.conf
 
+# Suppress AH00558 warning in containerized environments.
+echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf
+a2enconf servername >/dev/null
+
 # Keep writable runtime directories healthy.
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache || true
 chmod -R ug+rwx /var/www/html/storage /var/www/html/bootstrap/cache || true
