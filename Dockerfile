@@ -25,6 +25,7 @@ FROM php:8.3-apache-bookworm AS app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libzip-dev \
+        libpq-dev \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \
@@ -33,7 +34,7 @@ RUN apt-get update \
         unzip \
         git \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring bcmath exif gd zip opcache \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql pgsql pdo_pgsql mbstring bcmath exif gd zip opcache \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
