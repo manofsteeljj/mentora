@@ -10,8 +10,16 @@ services:
         value: production
       - key: APP_DEBUG
         value: false
+      - key: FORCE_HTTPS
+        value: true
       - key: LOG_CHANNEL
         value: stderr
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
       - key: VIEW_COMPILED_PATH
         value: /var/www/html/storage/framework/views
       - key: APP_KEY
@@ -19,11 +27,11 @@ services:
       - key: APP_URL
         sync: false
       - key: DB_CONNECTION
-        value: mariadb
+        sync: false
       - key: DB_HOST
         sync: false
       - key: DB_PORT
-        value: 3306
+        sync: false
       - key: DB_DATABASE
         sync: false
       - key: DB_USERNAME
