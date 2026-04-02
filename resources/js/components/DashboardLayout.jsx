@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import { Toaster } from 'sonner'
 
 const AdminDashboard = lazy(() => import('./AdminDashboard'))
+const Dashboard = lazy(() => import('./Dashboard'))
 const ChatInterface = lazy(() => import('./ChatInterface'))
 const CourseMaterials = lazy(() => import('./CourseMaterials'))
 const MyCourses = lazy(() => import('./MyCourses'))
@@ -169,7 +170,7 @@ export default function DashboardLayout() {
       case 'admin-faculty':
         return <AdminFaculty />
       case 'dashboard':
-        return userRole === 'admin' ? <AdminDashboard /> : <AdminPagePlaceholder title="Dashboard" />
+        return userRole === 'admin' ? <AdminDashboard /> : <Dashboard />
       case 'chat':
         if (userRole !== 'faculty') {
           return <AdminPagePlaceholder title="AI Chat" />
@@ -253,7 +254,7 @@ export default function DashboardLayout() {
       case 'settings':
         return userRole === 'admin' ? <AdminSettings /> : <Settings />
       default:
-        return userRole === 'admin' ? <AdminDashboard /> : <AdminPagePlaceholder title="Dashboard" />
+        return userRole === 'admin' ? <AdminDashboard /> : <Dashboard />
     }
   }
 
