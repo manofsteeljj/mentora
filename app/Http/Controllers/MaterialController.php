@@ -30,7 +30,7 @@ class MaterialController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|mimes:pdf|max:102400',
+            'file' => 'required|mimes:pdf|max:10240',
         ]);
 
         $path = $request->file('file')->store('materials', 'public');
@@ -158,7 +158,7 @@ class MaterialController extends Controller
         $request->validate([
             'title'     => 'required|string|max:255',
             'course_id' => 'required|exists:courses,id',
-            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:102400',
+            'file'      => 'required|mimes:pdf,pptx,ppt,docx,doc,xlsx,xls,txt|max:10240',
         ]);
 
         // Ensure user owns the course

@@ -13,6 +13,8 @@ a2enconf servername >/dev/null
 
 # Ensure Laravel runtime paths exist (especially when .dockerignore excludes them).
 mkdir -p \
+    /var/www/html/storage/app/public \
+    /var/www/html/storage/app/public/materials \
     /var/www/html/storage/logs \
     /var/www/html/storage/framework/cache \
     /var/www/html/storage/framework/sessions \

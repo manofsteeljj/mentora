@@ -38,6 +38,14 @@ RUN apt-get update \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
+RUN { \
+            echo 'upload_max_filesize=100M'; \
+            echo 'post_max_size=110M'; \
+            echo 'max_file_uploads=20'; \
+            echo 'max_execution_time=300'; \
+            echo 'memory_limit=512M'; \
+        } > /usr/local/etc/php/conf.d/uploads.ini
+
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
     /etc/apache2/sites-available/*.conf \

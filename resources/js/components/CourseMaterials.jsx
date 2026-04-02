@@ -84,7 +84,10 @@ export default function CourseMaterials() {
 
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
-        throw new Error(data.message || `Upload failed (${resp.status})`)
+        const firstValidationError = data?.errors
+          ? Object.values(data.errors)?.[0]?.[0]
+          : null
+        throw new Error(firstValidationError || data.message || `Upload failed (${resp.status})`)
       }
 
       setShowUploadModal(false)
