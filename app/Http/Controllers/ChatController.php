@@ -10,6 +10,7 @@ use App\Models\Course;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ChatController extends Controller
 {
@@ -35,20 +36,19 @@ class ChatController extends Controller
         $conversationId = $request->input('conversation_id');
         $courseId        = $request->input('course_id');
 
+        $isNewConversation = false;
+
         // Create or fetch the conversation
         if ($conversationId) {
             $conversation = Conversation::where('id', $conversationId)
                 ->where('user_id', Auth::id())
                 ->firstOrFail();
         } else {
-            // Auto-generate a title from the first ~50 chars of the message
-            $title = mb_strlen($userMessage) > 50
-                ? mb_substr($userMessage, 0, 50) . '...'
-                : $userMessage;
+            $isNewConversation = true;
 
             $conversation = Conversation::create([
                 'user_id' => Auth::id(),
-                'title'   => $title,
+                'title'   => 'New Chat',
             ]);
         }
 
@@ -219,17 +219,46 @@ class ChatController extends Controller
 
         $responseText = $this->extractResponse($resp);
 
-        // Save to database
-        Chat::create([
-            'user_id'         => Auth::id(),
-            'conversation_id' => $conversation->id,
-            'course_id'       => $courseId,
-            'message'         => $userMessage,
-            'response'        => $responseText,
-        ]);
+        // Save to database. If persistence fails, still return the generated answer.
+        try {
+            Chat::create([
+                'user_id'         => Auth::id(),
+                'conversation_id' => $conversation->id,
+                'course_id'       => $courseId,
+                'message'         => $userMessage,
+                'response'        => $responseText,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to persist chat response', [
+                'conversation_id' => $conversation->id,
+                'course_id' => $courseId,
+                'user_id' => Auth::id(),
+                'response_length' => mb_strlen($responseText),
+                'error' => $e->getMessage(),
+            ]);
+        }
 
-        // Touch conversation so updated_at reflects last activity
-        $conversation->touch();
+        if ($isNewConversation) {
+            try {
+                $generatedTitle = $this->generateConversationTitleFromContext($userMessage, $responseText);
+                if ($generatedTitle !== '') {
+                    $conversation->title = $generatedTitle;
+                    $conversation->save();
+                } else {
+                    $conversation->touch();
+                }
+            } catch (Throwable $e) {
+                Log::warning('Failed to generate conversation title from context', [
+                    'conversation_id' => $conversation->id,
+                    'user_id' => Auth::id(),
+                    'error' => $e->getMessage(),
+                ]);
+                $conversation->touch();
+            }
+        } else {
+            // Keep conversation ordering fresh for existing chats.
+            $conversation->touch();
+        }
 
         return response()->json([
             'response'        => $responseText,
@@ -616,6 +645,100 @@ class ChatController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Generate a concise conversation title using the chat context (not just the first prompt).
+     */
+    private function generateConversationTitleFromContext(string $userMessage, string $assistantResponse): string
+    {
+        $headingTitle = $this->extractPrimaryHeading($assistantResponse);
+        if ($headingTitle !== '') {
+            return $headingTitle;
+        }
+
+        $combined = $userMessage . "\n" . mb_substr($assistantResponse, 0, 900);
+        $clean = mb_strtolower($combined);
+        $clean = preg_replace('/```[\s\S]*?```/u', ' ', $clean) ?? $clean;
+        $clean = preg_replace('/https?:\/\/\S+/u', ' ', $clean) ?? $clean;
+        $clean = preg_replace('/[#>*_`~\[\]\(\)\{\}\|:;,.!?\/\\\\\-]+/u', ' ', $clean) ?? $clean;
+
+        $tokens = preg_split('/\s+/u', $clean, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $stopWords = [
+            'the','a','an','and','or','but','if','then','else','for','with','without','from','into','onto','over','under',
+            'is','are','was','were','be','been','being','to','of','in','on','at','by','as','it','its','this','that','these','those',
+            'you','your','we','our','they','their','he','she','his','her','them','who','what','when','where','why','how',
+            'please','could','would','should','can','may','might','help','about','based','using','create','generate','give',
+            'explain','show','tell','make','write','list','from','uploaded','materials','material','course',
+        ];
+
+        $scores = [];
+        $order = [];
+        foreach ($tokens as $idx => $token) {
+            if (mb_strlen($token) < 3) {
+                continue;
+            }
+            if (in_array($token, $stopWords, true)) {
+                continue;
+            }
+
+            if (!isset($scores[$token])) {
+                $scores[$token] = 0;
+                $order[$token] = $idx;
+            }
+            $scores[$token]++;
+        }
+
+        if (!empty($scores)) {
+            uksort($scores, function ($a, $b) use ($scores, $order) {
+                if ($scores[$a] === $scores[$b]) {
+                    return ($order[$a] ?? 0) <=> ($order[$b] ?? 0);
+                }
+                return $scores[$b] <=> $scores[$a];
+            });
+
+            $titleWords = array_slice(array_keys($scores), 0, 6);
+            $candidate = mb_convert_case(implode(' ', $titleWords), MB_CASE_TITLE, 'UTF-8');
+            $candidate = $this->sanitizeConversationTitle($candidate);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return $this->sanitizeConversationTitle($userMessage);
+    }
+
+    private function extractPrimaryHeading(string $text): string
+    {
+        $lines = preg_split('/\r?\n/', $text) ?: [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^#{1,3}\s+(.+)$/u', $line, $matches)) {
+                $candidate = $this->sanitizeConversationTitle($matches[1] ?? '');
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function sanitizeConversationTitle(string $title): string
+    {
+        $title = trim(strip_tags($title));
+        $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
+        $title = trim($title, " \t\n\r\0\x0B\"'`-:;,.[](){}");
+
+        if ($title === '') {
+            return '';
+        }
+
+        if (mb_strlen($title) > 72) {
+            $title = rtrim(mb_substr($title, 0, 72)) . '...';
+        }
+
+        return $title;
     }
 
     /**

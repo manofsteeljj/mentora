@@ -254,11 +254,17 @@ export default function ChatInterface({ conversationId = null, onConversationCre
         body: JSON.stringify(body),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+      let data = {}
+      try {
+        data = await response.json()
+      } catch {
+        data = {}
       }
 
-      const data = await response.json()
+      if (!response.ok) {
+        const errorText = data?.response || data?.message || data?.error || `HTTP ${response.status}`
+        throw new Error(errorText)
+      }
 
       // If this was a new conversation, save the returned conversation_id
       if (data.conversation_id && !currentConversationId) {
@@ -279,7 +285,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       const errorMessage = {
         id: generateId(),
         role: 'assistant',
-        content: 'Sorry, there was an error connecting to the AI provider. Please try again in a moment.',
+        content: error?.message || 'Sorry, there was an error connecting to the AI provider. Please try again in a moment.',
         timestamp: formatTime(),
       }
       setMessages(prev => [...prev, errorMessage])
