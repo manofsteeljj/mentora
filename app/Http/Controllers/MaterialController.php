@@ -6,10 +6,63 @@ use App\Models\Material;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Smalot\PdfParser\Parser;
 
 class MaterialController extends Controller
 {
+    private function getReadableFileSize(?string $filePath): string
+    {
+        if (!$filePath) {
+            return '0 KB';
+        }
+
+        try {
+            if (!Storage::disk('public')->exists($filePath)) {
+                return '0 KB';
+            }
+
+            $bytes = Storage::disk('public')->size($filePath);
+            if ($bytes >= 1048576) {
+                return round($bytes / 1048576, 1) . ' MB';
+            }
+
+            return round($bytes / 1024) . ' KB';
+        } catch (\Throwable $e) {
+            return '0 KB';
+        }
+    }
+
+    private function detectFileType(Material $material): string
+    {
+        $ext = $material->file_path
+            ? strtolower(pathinfo($material->file_path, PATHINFO_EXTENSION))
+            : '';
+
+        return match ($ext) {
+            'pdf' => 'PDF',
+            'docx', 'doc' => 'DOCX',
+            'pptx', 'ppt' => 'PPTX',
+            'xlsx', 'xls' => 'XLSX',
+            'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg' => 'Image',
+            'mp4', 'mov', 'avi', 'mkv', 'webm' => 'Video',
+            default => 'Other',
+        };
+    }
+
+    private function detectCategory(Material $material): string
+    {
+        $haystack = Str::lower(trim((string) ($material->title ?? '')) . ' ' . trim((string) ($material->material_type ?? '')));
+
+        if (str_contains($haystack, 'syllabus')) return 'Syllabus';
+        if (str_contains($haystack, 'quiz')) return 'Quiz';
+        if (str_contains($haystack, 'assign')) return 'Assignment';
+        if (str_contains($haystack, 'lab')) return 'Lab';
+        if (str_contains($haystack, 'reference')) return 'Reference';
+
+        return 'Lecture';
+    }
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -246,6 +299,45 @@ class MaterialController extends Controller
             });
 
         return response()->json($materials);
+    }
+
+    /**
+     * API: List all materials system-wide for admin pages.
+     */
+    public function adminIndex(Request $request)
+    {
+        $email = Str::lower((string) ($request->user()->email ?? ''));
+        if ($email !== 'admin@mentora.local') {
+            return response()->json([
+                'message' => 'Forbidden',
+            ], 403);
+        }
+
+        $materials = Material::with(['course:id,course_code,course_name,user_id', 'course.user:id,name'])
+            ->latest('created_at')
+            ->get()
+            ->map(function (Material $material) {
+                $courseCode = (string) ($material->course?->course_code ?? 'N/A');
+                $courseName = (string) ($material->course?->course_name ?? 'Unassigned Course');
+
+                return [
+                    'id' => (string) $material->id,
+                    'fileName' => (string) ($material->title ?: basename((string) ($material->file_path ?? 'Untitled'))),
+                    'fileType' => $this->detectFileType($material),
+                    'fileSize' => $this->getReadableFileSize($material->file_path),
+                    'course' => $courseName,
+                    'courseCode' => $courseCode,
+                    'uploadedBy' => (string) ($material->course?->user?->name ?? 'System'),
+                    'uploadDate' => optional($material->created_at)->toDateString(),
+                    'category' => $this->detectCategory($material),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'materials' => $materials,
+            'total' => $materials->count(),
+        ]);
     }
 }
 

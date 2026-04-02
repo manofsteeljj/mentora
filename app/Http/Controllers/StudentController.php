@@ -7,9 +7,34 @@ use App\Models\Student;
 use App\Models\Assessment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class StudentController extends Controller
 {
+    private function inferDepartmentName(?Course $course): string
+    {
+        if (!$course) {
+            return 'General Studies';
+        }
+
+        $name = Str::lower((string) $course->course_name);
+        $code = Str::upper((string) $course->course_code);
+
+        if (str_contains($name, 'network')) {
+            return 'Network Engineering';
+        }
+
+        if (str_contains($name, 'information technology') || preg_match('/\bIT\b/', $code)) {
+            return 'Information Technology';
+        }
+
+        if (str_contains($name, 'computer science') || str_starts_with($code, 'CS')) {
+            return 'Computer Science';
+        }
+
+        return 'General Studies';
+    }
+
     /**
      * Return all students for the authenticated teacher's courses,
      * with their submission/grade data grouped as activities.
@@ -129,6 +154,46 @@ class StudentController extends Controller
             'imported' => $imported,
             'updated' => $updated,
             'total' => $imported + $updated,
+        ]);
+    }
+
+    /**
+     * Return all students system-wide for admin pages.
+     */
+    public function adminIndex(Request $request): JsonResponse
+    {
+        $email = Str::lower((string) ($request->user()->email ?? ''));
+        if ($email !== 'admin@mentora.local') {
+            return response()->json([
+                'message' => 'Forbidden',
+            ], 403);
+        }
+
+        $rows = Student::with(['course:id,course_code,course_name,section,status'])
+            ->orderBy('name')
+            ->get();
+
+        $students = $rows->map(function (Student $student) {
+            $course = $student->course;
+            $courseCode = (string) ($course?->course_code ?? 'N/A');
+            $courseName = (string) ($course?->course_name ?? 'Unassigned Course');
+
+            return [
+                'id' => (string) $student->id,
+                'name' => (string) $student->name,
+                'studentId' => (string) ($student->student_number ?? $student->id),
+                'email' => (string) ($student->email ?? ''),
+                'course' => $courseCode !== 'N/A' ? "{$courseName} ({$courseCode})" : $courseName,
+                'section' => (string) ($course?->section ?? 'N/A'),
+                'department' => $this->inferDepartmentName($course),
+                'enrollmentDate' => optional($student->created_at)->toDateString(),
+                'status' => (($course?->status ?? 'ACTIVE') === 'ACTIVE') ? 'Active' : 'Inactive',
+            ];
+        })->values();
+
+        return response()->json([
+            'students' => $students,
+            'total' => $students->count(),
         ]);
     }
 }
