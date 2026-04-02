@@ -14,6 +14,7 @@ use App\Http\Controllers\GradingController;
 use App\Http\Controllers\GradebookController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\FacultyController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -107,6 +108,7 @@ Route::middleware('auth')->group(function () {
 
     // Dashboard API
     Route::get('/api/dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+    Route::get('/api/dashboard/admin', [DashboardController::class, 'adminOverview'])->name('api.dashboard.admin');
 
     // User Profile API
     Route::get('/api/user', function (\Illuminate\Http\Request $request) {
@@ -132,6 +134,10 @@ Route::middleware('auth')->group(function () {
 
     // Students API
     Route::get('/api/students', [StudentController::class, 'index'])->name('api.students.index');
+    Route::get('/api/admin/students', [StudentController::class, 'adminIndex'])->name('api.admin.students.index');
+    Route::get('/api/admin/courses', [CourseController::class, 'adminIndex'])->name('api.admin.courses.index');
+    Route::get('/api/admin/materials', [MaterialController::class, 'adminIndex'])->name('api.admin.materials.index');
+    Route::get('/api/admin/faculty', [FacultyController::class, 'adminIndex'])->name('api.admin.faculty.index');
     Route::post('/api/students/import', [StudentController::class, 'import'])->name('api.students.import');
 
     // Grading API

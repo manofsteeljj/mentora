@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
+import logoImage from '../../logo/MENTORA LOGO.png'
 import { motion } from 'framer-motion'
-import { Mail, Lock, User, ArrowRight, BookOpen, Brain, Users, Shield, GraduationCap } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, BookOpen, Brain, Users, Shield } from 'lucide-react'
 
 export default function LoginCard() {
   const csrf = typeof document !== 'undefined'
@@ -84,13 +85,15 @@ export default function LoginCard() {
   ]
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Branding & Features */}
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Left Side - Branding & Features - Animates based on role */}
       <motion.div
         initial={{ opacity: 0, x: -50 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6 }}
-        className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-12 flex-col justify-between relative overflow-hidden"
+        transition={{ duration: 0.8, ease: 'easeInOut' }}
+        className={`absolute top-0 bottom-0 left-0 hidden lg:flex w-1/2 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-12 flex-col justify-between overflow-hidden transition-all duration-700 ${
+          role === 'faculty' ? 'lg:left-0' : 'lg:left-1/2'
+        }`}
       >
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -106,10 +109,7 @@ export default function LoginCard() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="flex items-center gap-3 mb-16"
           >
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-3xl font-bold text-white">Mentora</span>
+            <img src={logoImage} alt="Mentora" className="h-12" />
           </motion.div>
 
           {/* Main Content */}
@@ -159,22 +159,25 @@ export default function LoginCard() {
         </motion.p>
       </motion.div>
 
-      {/* Right Side - Login Form */}
+      {/* Right Side - Login Form - Animates based on role */}
       <motion.div
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6 }}
-        className="flex-1 flex items-center justify-center p-8 bg-white"
+        transition={{ duration: 0.8, ease: 'easeInOut' }}
+        className={`absolute top-0 bottom-0 left-0 w-full lg:w-1/2 flex items-center justify-center p-8 bg-white overflow-hidden transition-all duration-700 ${
+          role === 'faculty' ? 'lg:left-1/2' : 'lg:left-0'
+        }`}
       >
-        <div className="w-full max-w-md">
+        <motion.div
+          className="w-full max-w-md relative z-10"
+          key={role}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
           {/* Mobile Logo */}
           <div className="lg:hidden flex justify-center mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-700 rounded-xl flex items-center justify-center">
-                <GraduationCap className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-3xl font-bold text-gray-900">Mentora</span>
-            </div>
+            <img src={logoImage} alt="Mentora" className="h-12" />
           </div>
 
           <motion.div
@@ -385,7 +388,7 @@ export default function LoginCard() {
               Contact Support
             </a>
           </motion.p>
-        </div>
+        </motion.div>
       </motion.div>
     </div>
   )

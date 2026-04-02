@@ -10,10 +10,32 @@ use App\Models\Submission;
 use App\Models\Grade;
 use App\Models\Material;
 use App\Models\Conversation;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
+    private function inferDepartmentName(Course $course): string
+    {
+        $name = Str::lower((string) $course->course_name);
+        $code = Str::upper((string) $course->course_code);
+
+        if (str_contains($name, 'network')) {
+            return 'Network Engineering';
+        }
+
+        if (str_contains($name, 'information technology') || preg_match('/\bIT\b/', $code)) {
+            return 'Information Technology';
+        }
+
+        if (str_contains($name, 'computer science') || str_starts_with($code, 'CS')) {
+            return 'Computer Science';
+        }
+
+        return 'General Studies';
+    }
+
     /**
      * Return all dashboard data for the authenticated user.
      */
@@ -163,6 +185,122 @@ class DashboardController extends Controller
                 'totalAssessments' => $totalAssessments,
                 'totalConversations' => $totalConversations,
             ],
+        ]);
+    }
+
+    /**
+     * Return real, system-wide admin dashboard data.
+     */
+    public function adminOverview(Request $request)
+    {
+        $currentUser = $request->user();
+
+        $totalStudents = Student::count();
+        $totalFaculty = User::count();
+        $totalCourses = Course::count();
+        $totalMaterials = Material::count();
+
+        $activeStudentIds = Submission::distinct('student_id')->count('student_id');
+        $activeCourses = Course::where('status', 'ACTIVE')->count();
+        $materialsThisMonth = Material::whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+        $newFacultyThisMonth = User::whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+
+        $courseRows = Course::withCount('students')->get();
+        $coursesByDepartment = $courseRows
+            ->groupBy(fn (Course $course) => $this->inferDepartmentName($course))
+            ->map(function ($items, $department) {
+                return [
+                    'department' => $department,
+                    'courses' => $items->count(),
+                    'students' => $items->sum('students_count'),
+                ];
+            })
+            ->values();
+
+        $courseEvents = Course::with('user:id,name')
+            ->latest('updated_at')
+            ->limit(8)
+            ->get()
+            ->map(function (Course $course) {
+                $isUpdated = $course->updated_at && $course->created_at
+                    ? $course->updated_at->gt($course->created_at)
+                    : false;
+
+                return [
+                    'id' => "course-{$course->id}",
+                    'action' => $isUpdated ? 'Course updated' : 'New course created',
+                    'user' => $course->user->name ?? 'System',
+                    'course' => trim((string) $course->course_name) !== '' ? $course->course_name : '-',
+                    'time' => optional($course->updated_at ?? $course->created_at)->diffForHumans() ?? 'just now',
+                    'sortAt' => $course->updated_at ?? $course->created_at,
+                ];
+            });
+
+        $materialEvents = Material::with(['course:id,course_name,user_id', 'course.user:id,name'])
+            ->latest('created_at')
+            ->limit(8)
+            ->get()
+            ->map(function (Material $material) {
+                return [
+                    'id' => "material-{$material->id}",
+                    'action' => 'Material uploaded',
+                    'user' => $material->course?->user?->name ?? 'System',
+                    'course' => $material->course?->course_name ?? '-',
+                    'time' => optional($material->created_at)->diffForHumans() ?? 'just now',
+                    'sortAt' => $material->created_at,
+                ];
+            });
+
+        $facultyEvents = User::latest('created_at')
+            ->limit(6)
+            ->get()
+            ->map(function (User $user) use ($currentUser) {
+                return [
+                    'id' => "faculty-{$user->id}",
+                    'action' => 'New faculty member',
+                    'user' => $user->name,
+                    'course' => '-',
+                    'time' => optional($user->created_at)->diffForHumans() ?? 'just now',
+                    'sortAt' => $user->created_at,
+                ];
+            })
+            ->reject(fn (array $event) => $currentUser && $event['user'] === $currentUser->name && $totalFaculty === 1);
+
+        $recentActivity = collect()
+            ->merge($courseEvents)
+            ->merge($materialEvents)
+            ->merge($facultyEvents)
+            ->filter(fn (array $event) => !empty($event['sortAt']))
+            ->sortByDesc('sortAt')
+            ->take(5)
+            ->values()
+            ->map(function (array $event, int $index) {
+                return [
+                    'id' => $index + 1,
+                    'action' => $event['action'],
+                    'user' => $event['user'],
+                    'course' => $event['course'],
+                    'time' => $event['time'],
+                ];
+            });
+
+        return response()->json([
+            'stats' => [
+                'totalStudents' => $totalStudents,
+                'totalFaculty' => $totalFaculty,
+                'totalCourses' => $totalCourses,
+                'totalMaterials' => $totalMaterials,
+                'activeStudents' => $activeStudentIds,
+                'activeCourses' => $activeCourses,
+                'materialsThisMonth' => $materialsThisMonth,
+                'newFacultyThisMonth' => $newFacultyThisMonth,
+            ],
+            'recentActivity' => $recentActivity,
+            'coursesByDepartment' => $coursesByDepartment,
         ]);
     }
 }

@@ -4,9 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class CourseController extends Controller
 {
+    private function inferDepartmentName(Course $course): string
+    {
+        $name = Str::lower((string) $course->course_name);
+        $code = Str::upper((string) $course->course_code);
+
+        if (str_contains($name, 'network')) {
+            return 'Network Engineering';
+        }
+
+        if (str_contains($name, 'information technology') || preg_match('/\bIT\b/', $code)) {
+            return 'Information Technology';
+        }
+
+        if (str_contains($name, 'computer science') || str_starts_with($code, 'CS')) {
+            return 'Computer Science';
+        }
+
+        return 'General Studies';
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -76,5 +97,51 @@ class CourseController extends Controller
     public function destroy(Course $course)
     {
         //
+    }
+
+    /**
+     * Return all courses system-wide for admin pages.
+     */
+    public function adminIndex(Request $request)
+    {
+        $email = Str::lower((string) ($request->user()->email ?? ''));
+        if ($email !== 'admin@mentora.local') {
+            return response()->json([
+                'message' => 'Forbidden',
+            ], 403);
+        }
+
+        $courses = Course::with(['user:id,name'])
+            ->withCount(['students', 'materials'])
+            ->orderBy('course_code')
+            ->get()
+            ->map(function (Course $course) {
+                $rawStatus = Str::upper((string) ($course->status ?? 'ACTIVE'));
+                $status = match ($rawStatus) {
+                    'ACTIVE' => 'Active',
+                    'COMPLETED' => 'Completed',
+                    default => 'Inactive',
+                };
+
+                return [
+                    'id' => (string) $course->id,
+                    'code' => (string) ($course->course_code ?? 'N/A'),
+                    'name' => (string) ($course->course_name ?? 'Untitled Course'),
+                    'department' => $this->inferDepartmentName($course),
+                    'instructor' => (string) ($course->user->name ?? 'Unassigned'),
+                    'students' => (int) ($course->students_count ?? 0),
+                    'materials' => (int) ($course->materials_count ?? 0),
+                    'section' => (string) ($course->section ?? 'N/A'),
+                    'semester' => (string) ($course->academic_term ?? 'Not set'),
+                    'status' => $status,
+                    'startDate' => optional($course->created_at)->toDateString(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'courses' => $courses,
+            'total' => $courses->count(),
+        ]);
     }
 }
