@@ -16,6 +16,7 @@ const AdminStudents = lazy(() => import('./AdminStudents'))
 const AdminCourses = lazy(() => import('./AdminCourses'))
 const AdminMaterials = lazy(() => import('./AdminMaterials'))
 const AdminFaculty = lazy(() => import('./AdminFaculty'))
+const AdminSettings = lazy(() => import('./AdminSettings'))
 const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
 
@@ -250,7 +251,7 @@ export default function DashboardLayout() {
       case 'profile':
         return <Profile />
       case 'settings':
-        return <Settings />
+        return userRole === 'admin' ? <AdminSettings /> : <Settings />
       default:
         return userRole === 'admin' ? <AdminDashboard /> : <AdminPagePlaceholder title="Dashboard" />
     }
