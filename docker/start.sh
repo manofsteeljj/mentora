@@ -30,4 +30,8 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php /var/www/html/artisan migrate --force || true
 fi
 
+if [ "${RUN_SEEDERS:-false}" = "true" ]; then
+    php /var/www/html/artisan db:seed --force || true
+fi
+
 exec apache2-foreground

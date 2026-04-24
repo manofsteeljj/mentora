@@ -19,11 +19,21 @@ class DatabaseSeeder extends Seeder
         // Optional: generate more users
         // User::factory(10)->create();
 
-        // Create a stable demo account you can log in with.
+        // Create a stable faculty demo account you can log in with.
         User::firstOrCreate(
             ['email' => 'faculty@mentora.test'],
             [
                 'name' => 'Faculty Demo',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+            ]
+        );
+
+        // Create an admin account used by admin routes / UI.
+        User::firstOrCreate(
+            ['email' => 'admin@mentora.local'],
+            [
+                'name' => 'System Administrator',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]

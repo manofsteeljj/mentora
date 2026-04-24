@@ -45,6 +45,36 @@ function extractQuestionBlocks(content) {
   return paragraphs.join('\n\n')
 }
 
+function countDetectedQuestions(content) {
+  const extracted = extractQuestionBlocks(content)
+  if (!extracted) return 0
+
+  return extracted
+    .split(/\n\s*\n+/)
+    .map((q) => q.trim())
+    .filter((q) => q && /\?/m.test(q)).length
+}
+
+function shouldShowQuestionDownload(message, index, messages) {
+  if (!message || message.role !== 'assistant' || !message.content) return false
+
+  const questionCount = countDetectedQuestions(message.content)
+  if (questionCount < 3) return false
+
+  const priorUserMessage = [...messages]
+    .slice(0, index)
+    .reverse()
+    .find((m) => m.role === 'user')
+
+  const userPrompt = String(priorUserMessage?.content || '')
+  const assessmentIntentRegex = /\b(quiz|exam|test|assessment|question(?:s)?|worksheet|rubric|multiple\s*choice|true\s*or\s*false)\b/i
+  if (assessmentIntentRegex.test(userPrompt)) return true
+
+  const assistantContent = String(message.content)
+  const structuredAssessmentRegex = /(question\s*\d+|\b\d+[\).:-]\s+|answer\s*key|correct\s*answer|choices?\s*[A-D])/i
+  return structuredAssessmentRegex.test(assistantContent)
+}
+
 async function downloadResponseDocx(message) {
   const extracted = extractQuestionBlocks(message?.content)
   if (!extracted) {
@@ -370,7 +400,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
               </div>
             </div>
           ) : (
-            messages.map((message) => (
+            messages.map((message, index) => (
               <div key={message.id} className="flex gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                   message.role === 'assistant' ? 'bg-green-100' : 'bg-gray-200'
@@ -428,7 +458,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                       })}
                     </div>
                   )}
-                  {message.role === 'assistant' && !isLoading && message.content && (
+                  {shouldShowQuestionDownload(message, index, messages) && !isLoading && (
                     <div className="mt-2">
                       <Button
                         type="button"

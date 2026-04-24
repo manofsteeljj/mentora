@@ -52,3 +52,5 @@ services:
         value: Mentora
       - key: RUN_MIGRATIONS
         value: "false"
+      - key: RUN_SEEDERS
+        value: "true"
