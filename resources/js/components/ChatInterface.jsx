@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Badge } from './ui/badge'
-import { Send, Bot, User, Loader2, FileText, Download } from 'lucide-react'
+import { Send, Bot, User, Loader2, FileText, Download, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ContextPanel from './ContextPanel'
 
@@ -41,7 +41,7 @@ function extractQuestionBlocks(content) {
     .map((p) => p.trim())
     .filter(Boolean)
     .filter((p) => /\?/m.test(p))
-
+  
   return paragraphs.join('\n\n')
 }
 
@@ -121,45 +121,30 @@ export default function ChatInterface({ conversationId = null, onConversationCre
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentConversationId, setCurrentConversationId] = useState(conversationId)
-  const [activeCourseId, setActiveCourseId] = useState(null)
   const [courses, setCourses] = useState([])
+  // Module picker state — per-message attachment
+  const [attachedModule, setAttachedModule] = useState(null) // { id, label }
+  const [materials, setMaterials] = useState([])
+  const [showModulePicker, setShowModulePicker] = useState(false)
+  const modulePicker = useRef(null)
   const scrollRef = useRef(null)
 
   function getToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
   }
 
-  const activeCourse = courses.find(c => String(c.id) === String(activeCourseId))
-
-  const getLastGradingPeriod = () => {
-    try {
-      return window.localStorage.getItem('mentora_last_grading_period') || ''
-    } catch {
-      return ''
+  // Close module picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (modulePicker.current && !modulePicker.current.contains(e.target)) {
+        setShowModulePicker(false)
+      }
     }
-  }
-
-  const withQuickActionContext = (baseMessage) => {
-    if (!activeCourseId) return baseMessage
-
-    const courseLabel = activeCourse
-      ? `${activeCourse.course_code || ''}${activeCourse.course_code && activeCourse.course_name ? ' - ' : ''}${activeCourse.course_name || ''}`.trim()
-      : ''
-
-    const gradingPeriod = getLastGradingPeriod()
-
-    const lines = []
-    if (courseLabel) lines.push(`Course: ${courseLabel}`)
-    if (gradingPeriod) lines.push(`Grading period: ${gradingPeriod}`)
-
-    const mentionsMaterials = /materials|course\s+materials|uploaded/i.test(String(baseMessage || ''))
-    if (!mentionsMaterials) {
-      lines.push('Use my uploaded course materials as the primary reference.')
+    if (showModulePicker) {
+      document.addEventListener('mousedown', handleClickOutside)
     }
-
-    if (lines.length === 0) return baseMessage
-    return `${lines.join('\n')}\n\n${baseMessage}`
-  }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showModulePicker])
 
   const markdownComponents = {
     h2: (props) => <h2 className="text-base font-semibold mt-3 mb-1 text-gray-900" {...props} />,
@@ -201,6 +186,14 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       .then(r => r.ok ? r.json() : [])
       .then(data => setCourses(Array.isArray(data) ? data : []))
       .catch(() => setCourses([]))
+
+    fetch('/api/materials', {
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+      credentials: 'same-origin',
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setMaterials(Array.isArray(data) ? data : []))
+      .catch(() => setMaterials([]))
   }, [])
 
   // Reset messages when conversationId prop changes
@@ -257,10 +250,14 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       role: 'user',
       content: content.trim(),
       timestamp: formatTime(),
+      attachedModule: attachedModule ? { ...attachedModule } : null,
     }
 
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    // Clear the per-message attachment after sending
+    const materialIdToSend = attachedModule?.id ?? null
+    setAttachedModule(null)
     setIsLoading(true)
 
     try {
@@ -269,8 +266,8 @@ export default function ChatInterface({ conversationId = null, onConversationCre
       if (currentConversationId) {
         body.conversation_id = currentConversationId
       }
-      if (activeCourseId) {
-        body.course_id = activeCourseId
+      if (materialIdToSend) {
+        body.material_id = materialIdToSend
       }
 
       const response = await fetch('/api/chat', {
@@ -356,42 +353,42 @@ export default function ChatInterface({ conversationId = null, onConversationCre
               <p className="text-gray-500 mb-4">I&apos;m your context-aware teaching assistant.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Create a lesson plan for OSPF multi-area"))}
+                  onClick={() => sendMessage("Create a lesson plan for OSPF multi-area")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📚 Lesson Planning</p>
                   <p className="text-xs text-gray-500">Create comprehensive lesson plans</p>
                 </button>
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Generate quiz questions about Database normalization"))}
+                  onClick={() => sendMessage("Generate quiz questions about Database normalization")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">✍️ Generate Quiz</p>
                   <p className="text-xs text-gray-500">Create assessments with rubrics</p>
                 </button>
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Help me grade student submissions"))}
+                  onClick={() => sendMessage("Help me grade student submissions")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📊 Grading Assistance</p>
                   <p className="text-xs text-gray-500">AI-powered grading suggestions</p>
                 </button>
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Create an assignment for OSPF configuration"))}
+                  onClick={() => sendMessage("Create an assignment for OSPF configuration")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📝 Create Assignment</p>
                   <p className="text-xs text-gray-500">Design student projects</p>
                 </button>
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Summarize the key concepts from my uploaded course materials"))}
+                  onClick={() => sendMessage("Summarize the key concepts from my uploaded course materials")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">📄 Summarize Materials</p>
                   <p className="text-xs text-gray-500">Extract key points and examples</p>
                 </button>
                 <button
-                  onClick={() => sendMessage(withQuickActionContext("Create a grading rubric for my next assignment with criteria and point breakdown"))}
+                  onClick={() => sendMessage("Create a grading rubric for my next assignment with criteria and point breakdown")}
                   className="p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm">🧩 Build a Rubric</p>
@@ -417,6 +414,12 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                       {message.role === 'assistant' ? 'Mentora' : 'You'}
                     </span>
                     <span className="text-xs text-gray-500">{message.timestamp}</span>
+                    {message.role === 'user' && message.attachedModule && (
+                      <Badge variant="outline" className="text-xs font-normal text-green-800 border-green-300 bg-green-50 flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        {message.attachedModule.label}
+                      </Badge>
+                    )}
                   </div>
                   <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-strong:text-gray-900 prose-strong:font-semibold prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-p:my-1">
                     {message.role === 'assistant' ? (
@@ -505,7 +508,90 @@ export default function ChatInterface({ conversationId = null, onConversationCre
 
       <div className="border-t border-gray-200 p-4 bg-white">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-          <div className="flex gap-2">
+          {/* Attached module chip */}
+          {attachedModule && (
+            <div className="flex items-center gap-2 mb-2">
+              <Badge
+                variant="outline"
+                className="text-xs font-normal text-green-800 border-green-300 bg-green-50 flex items-center gap-1 pr-1"
+              >
+                <FileText className="w-3 h-3" />
+                {attachedModule.label}
+                <button
+                  type="button"
+                  onClick={() => setAttachedModule(null)}
+                  className="ml-1 rounded-full hover:bg-green-100 p-0.5"
+                  aria-label="Remove module"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            </div>
+          )}
+
+          <div className="flex gap-2 items-end">
+            {/* Plus button with module picker */}
+            <div className="relative" ref={modulePicker}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-[60px] w-[44px] shrink-0 border-gray-300 hover:border-green-500 hover:text-green-700"
+                onClick={() => setShowModulePicker(v => !v)}
+                title="Attach a course module"
+                disabled={isLoading}
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+
+              {showModulePicker && (
+                <div className="absolute bottom-full left-0 mb-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Attach Module</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowModulePicker(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto py-1">
+                    {materials.length === 0 ? (
+                      <p className="text-xs text-gray-400 px-3 py-3">No materials uploaded yet</p>
+                    ) : (
+                      materials.map(m => {
+                        const isSelected = attachedModule?.id === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-green-50 text-green-800' : 'text-gray-800'}`}
+                            onClick={() => {
+                              setAttachedModule(isSelected ? null : { id: m.id, label: m.title })
+                              setShowModulePicker(false)
+                            }}
+                          >
+                            <FileText className={`w-4 h-4 shrink-0 ${isSelected ? 'text-green-600' : 'text-gray-400'}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate">{m.title}</p>
+                              <p className="text-xs text-gray-400 truncate">
+                                {[m.course_name, m.type].filter(Boolean).join(' · ')}
+                              </p>
+                            </div>
+                            {isSelected && <span className="ml-auto text-green-600 text-xs shrink-0">✓</span>}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                  <div className="px-3 py-2 border-t border-gray-100">
+                    <p className="text-xs text-gray-400">AI will focus on this material for this message only.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -532,8 +618,8 @@ export default function ChatInterface({ conversationId = null, onConversationCre
 
       {/* Context Panel (right sidebar) */}
       <ContextPanel
-        onQuickAction={(msg) => sendMessage(withQuickActionContext(msg))}
-        onCourseChange={(courseId) => setActiveCourseId(courseId)}
+        onQuickAction={(msg) => sendMessage(msg)}
+        onCourseChange={() => {}}
       />
     </div>
   )

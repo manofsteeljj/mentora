@@ -24,6 +24,7 @@ class ChatController extends Controller
             'message'         => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'course_id'       => 'nullable|integer|exists:courses,id',
+            'material_id'     => 'nullable|integer|exists:materials,id',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -34,7 +35,8 @@ class ChatController extends Controller
 
         $userMessage    = $request->input('message');
         $conversationId = $request->input('conversation_id');
-        $courseId        = $request->input('course_id');
+        $courseId       = $request->input('course_id');
+        $materialId     = $request->input('material_id');
 
         $isNewConversation = false;
 
@@ -75,7 +77,7 @@ class ChatController extends Controller
         }
 
         // ── RAG: Retrieve relevant materials ──────────────────────────────
-        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
+        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials, $materialId);
         $ragContext   = $ragResult['context'];
         $ragSources   = $ragResult['sources'];
 
@@ -366,11 +368,11 @@ class ChatController extends Controller
      * Retrieve relevant material chunks using keyword-based scoring (RAG).
      * Returns the concatenated context string and an array of source metadata.
      */
-    private function retrieveRelevantMaterials(string $query, ?int $courseId = null, bool $preferAllMaterials = false): array
+    private function retrieveRelevantMaterials(string $query, ?int $courseId = null, bool $preferAllMaterials = false, ?int $materialId = null): array
     {
         $userId = Auth::id();
 
-        // Get all materials for the user's courses (optionally filtered by course).
+        // Get all materials for the user's courses (optionally filtered by course or a specific material).
         // Use extracted text when available, but fall back to title/description metadata
         // so Google Classroom links and other non-file materials can still ground responses.
         $materialsQuery = Material::whereHas('course', function ($q) use ($userId) {
@@ -381,7 +383,10 @@ class ChatController extends Controller
               ->orWhereNotNull('title')->where('title', '!=', '');
         });
 
-        if ($courseId) {
+        // A specific material takes priority over course filter
+        if ($materialId) {
+            $materialsQuery->where('id', $materialId);
+        } elseif ($courseId) {
             $materialsQuery->where('course_id', $courseId);
         }
 
