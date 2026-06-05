@@ -370,10 +370,16 @@ export default function LoginCard() {
             transition={{ duration: 0.6, delay: 0.45 }}
             className="mt-6 text-center text-sm text-gray-600"
           >
-            Don&apos;t have an account?{' '}
-            <a href="/register" className="text-green-600 hover:text-green-700 font-medium">
-              Register
-            </a>
+            {role === 'faculty' ? (
+              <>
+                Don&apos;t have an account?{' '}
+                <a href="/register" className="text-green-600 hover:text-green-700 font-medium">
+                  Register
+                </a>
+              </>
+            ) : (
+              'Admin accounts are managed by the system owner.'
+            )}
           </motion.p>
 
           {/* Help Text */}
