@@ -321,7 +321,7 @@ Sign in with Google to unlock full Classroom sync. The OAuth flow requests all r
 | Name | Role |
 |---|---|
 | **Project Team** | Capstone development |
-| [@ArronRyyel](https://github.com/ArronRyyel) | Contributor |
+| [@ArronRyyel](https://github.com/ArronRyyel) | UI/UX Designer|
 
 ---
 
