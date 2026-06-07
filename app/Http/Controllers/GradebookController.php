@@ -7,7 +7,6 @@ use App\Models\GradebookGrade;
 use App\Models\Course;
 use App\Models\Student;
 use Illuminate\Http\Request;
-
 class GradebookController extends Controller
 {
     private function assertCourseOwnedByUser(Request $request, int $courseId): void
@@ -95,40 +94,51 @@ class GradebookController extends Controller
     public function gradesUpsert(Request $request)
     {
         $data = $request->validate([
-            'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
-            'grades' => ['required', 'array'],
-            'grades.*.student_id' => ['required', 'integer', 'exists:students,id'],
-            'grades.*.assessment_id' => ['required', 'integer', 'exists:gradebook_assessments,id'],
-            'grades.*.score' => ['nullable', 'numeric', 'min:0'],
+            'course_id'                   => ['required', 'integer', 'exists:courses,id'],
+            'grading_period'              => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grades'                      => ['required', 'array'],
+            'grades.*.student_id'         => ['required', 'integer', 'exists:students,id'],
+            'grades.*.assessment_id'      => ['required', 'integer', 'exists:gradebook_assessments,id'],
+            'grades.*.score'              => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $this->assertCourseOwnedByUser($request, (int) $data['course_id']);
+        $courseId      = (int) $data['course_id'];
+        $gradingPeriod = $data['grading_period'];
 
+        $this->assertCourseOwnedByUser($request, $courseId);
+
+        // Pre-fetch valid assessment IDs for this course + period (1 query)
+        $validAssessmentIds = GradebookAssessment::query()
+            ->where('course_id', $courseId)
+            ->where('grading_period', $gradingPeriod)
+            ->pluck('id')
+            ->flip()
+            ->all();
+
+        // Pre-fetch valid student IDs for this course (1 query)
+        $validStudentIds = Student::query()
+            ->where('course_id', $courseId)
+            ->pluck('id')
+            ->flip()
+            ->all();
+
+        // Validate in memory and build upsert payload
         foreach ($data['grades'] as $row) {
-            $assessment = GradebookAssessment::query()
-                ->where('id', $row['assessment_id'])
-                ->where('course_id', $data['course_id'])
-                ->where('grading_period', $data['grading_period'])
-                ->first();
-
-            if (!$assessment) {
+            if (! isset($validAssessmentIds[$row['assessment_id']])) {
                 return response()->json([
                     'message' => 'Assessment does not belong to this course or grading period.',
                 ], 422);
             }
 
-            $studentInCourse = Student::query()
-                ->where('id', $row['student_id'])
-                ->where('course_id', $data['course_id'])
-                ->exists();
-
-            if (!$studentInCourse) {
+            if (! isset($validStudentIds[$row['student_id']])) {
                 return response()->json([
                     'message' => 'Student does not belong to this course.',
                 ], 422);
             }
+        }
 
+        // Bulk upsert (one query per row, but validation is now O(1) in memory)
+        foreach ($data['grades'] as $row) {
             GradebookGrade::updateOrCreate(
                 ['student_id' => $row['student_id'], 'assessment_id' => $row['assessment_id']],
                 ['score' => $row['score']]

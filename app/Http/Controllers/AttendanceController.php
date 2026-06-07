@@ -51,24 +51,33 @@ class AttendanceController extends Controller
             }
         }
 
-        // Lifetime stats per student for this course
-        $allCourseAttendance = Attendance::where('course_id', $courseId)->get(['student_id', 'status']);
-        $statsByStudent = $allCourseAttendance->groupBy('student_id')->map(function ($rows) {
-            $present = $rows->where('status', 'present')->count();
-            $absent = $rows->where('status', 'absent')->count();
-            $late = $rows->where('status', 'late')->count();
-            $excused = $rows->where('status', 'excused')->count();
-            $total = $rows->count();
-            $attendanceRate = $total > 0 ? (int) round((($present + $excused) / $total) * 100) : 100;
-            return [
-                'present' => $present,
-                'absent' => $absent,
-                'late' => $late,
-                'excused' => $excused,
-                'total' => $total,
-                'attendanceRate' => $attendanceRate,
-            ];
-        });
+        // Lifetime stats per student for this course — aggregated in SQL (not PHP)
+        $statsByStudent = Attendance::where('course_id', $courseId)
+            ->selectRaw("student_id,
+                SUM(status = 'present') as present,
+                SUM(status = 'absent')  as absent,
+                SUM(status = 'late')    as late,
+                SUM(status = 'excused') as excused,
+                COUNT(*) as total")
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id')
+            ->map(function ($row) {
+                $total   = (int) $row->total;
+                $present = (int) $row->present;
+                $excused = (int) $row->excused;
+                $attendanceRate = $total > 0
+                    ? (int) round((($present + $excused) / $total) * 100)
+                    : 100;
+                return [
+                    'present'        => $present,
+                    'absent'         => (int) $row->absent,
+                    'late'           => (int) $row->late,
+                    'excused'        => $excused,
+                    'total'          => $total,
+                    'attendanceRate' => $attendanceRate,
+                ];
+            });
 
         $pendingExcuseLetters = ExcuseLetter::whereHas('attendance', function ($q) use ($courseId) {
             $q->where('course_id', $courseId);

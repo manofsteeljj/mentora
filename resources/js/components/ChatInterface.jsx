@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
@@ -10,6 +10,10 @@ import ContextPanel from './ContextPanel'
 
 let nextId = 1
 function generateId() {
+  // Use crypto.randomUUID when available (avoids HMR/StrictMode desync)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
   return String(nextId++)
 }
 
@@ -146,7 +150,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showModulePicker])
 
-  const markdownComponents = {
+  const markdownComponents = useMemo(() => ({
     h2: (props) => <h2 className="text-base font-semibold mt-3 mb-1 text-gray-900" {...props} />,
     h3: (props) => <h3 className="text-sm font-semibold mt-3 mb-1 text-gray-900" {...props} />,
     p: (props) => <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-900 my-1" {...props} />,
@@ -159,7 +163,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
     ),
     code: (props) => <code className="px-1 py-0.5 rounded bg-gray-100 text-gray-900 text-xs" {...props} />,
     pre: (props) => <pre className="p-3 rounded bg-gray-100 overflow-x-auto text-xs my-2" {...props} />,
-  }
+  }), [])
 
   const normalizeSources = (rawSources) => {
     if (!Array.isArray(rawSources)) return []
@@ -179,21 +183,22 @@ export default function ChatInterface({ conversationId = null, onConversationCre
   }, [messages, isLoading])
 
   useEffect(() => {
-    fetch('/api/courses', {
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
-      credentials: 'same-origin',
-    })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setCourses(Array.isArray(data) ? data : []))
-      .catch(() => setCourses([]))
-
-    fetch('/api/materials', {
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
-      credentials: 'same-origin',
-    })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setMaterials(Array.isArray(data) ? data : []))
-      .catch(() => setMaterials([]))
+    // Fetch courses and materials in parallel
+    Promise.all([
+      fetch('/api/courses', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      }).then(r => r.ok ? r.json() : []),
+      fetch('/api/materials', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      }).then(r => r.ok ? r.json() : []),
+    ])
+      .then(([coursesData, materialsData]) => {
+        setCourses(Array.isArray(coursesData) ? coursesData : [])
+        setMaterials(Array.isArray(materialsData) ? materialsData : [])
+      })
+      .catch(() => {})
   }, [])
 
   // Reset messages when conversationId prop changes

@@ -36,11 +36,11 @@ Route::view('/privacy', 'privacy')->name('privacy');
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 
-// Show an assessment and its questions
-Route::get('/assessments/{id}', [AssessmentController::class, 'show'])->name('assessments.show');
-Route::get('/assessments/{id}/export-docx', [AssessmentController::class, 'exportDocx'])
-    ->middleware('auth')
-    ->name('assessments.export.docx');
+// Show an assessment and its questions (auth required on both)
+Route::middleware('auth')->group(function () {
+    Route::get('/assessments/{id}', [AssessmentController::class, 'show'])->name('assessments.show');
+    Route::get('/assessments/{id}/export-docx', [AssessmentController::class, 'exportDocx'])->name('assessments.export.docx');
+});
 
 Route::get('/dashboard', function () {
     return view('dashboard');

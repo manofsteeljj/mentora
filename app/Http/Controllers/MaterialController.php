@@ -112,6 +112,8 @@ class MaterialController extends Controller
 
     public function show($courseId, $id)
     {
+        // Verify the course belongs to the authenticated user
+        Course::where('id', $courseId)->where('user_id', auth()->id())->firstOrFail();
         $material = Material::where('course_id', $courseId)->findOrFail($id);
         $fullPath = Storage::disk('public')->path($material->file_path);
         return response()->file($fullPath);
@@ -119,6 +121,8 @@ class MaterialController extends Controller
 
     public function destroy($courseId, $id)
     {
+        // Verify the course belongs to the authenticated user
+        Course::where('id', $courseId)->where('user_id', auth()->id())->firstOrFail();
         $material = Material::where('course_id', $courseId)->findOrFail($id);
         Storage::disk('public')->delete($material->file_path);
         $material->delete();
