@@ -4,6 +4,7 @@ import LoginCard from './components/LoginCard'
 import RegisterCard from './components/RegisterCard'
 import LandingPage from './components/LandingPage'
 import DashboardLayout from './components/DashboardLayout'
+import PendingApprovalPage from './components/PendingApprovalPage'
 
 function mountComponent(elementId, Component) {
   const el = document.getElementById(elementId)
@@ -18,4 +19,5 @@ document.addEventListener('DOMContentLoaded', () => {
   mountComponent('react-register-root', RegisterCard)
   mountComponent('react-landing-root', LandingPage)
   mountComponent('react-dashboard-root', DashboardLayout)
+  mountComponent('react-pending-approval-root', PendingApprovalPage)
 })
