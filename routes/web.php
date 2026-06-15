@@ -31,6 +31,7 @@ Route::get('/', function () {
 Route::view('/support', 'support')->name('support');
 Route::view('/terms', 'terms')->name('terms');
 Route::view('/privacy', 'privacy')->name('privacy');
+Route::view('/pending-approval', 'auth.pending-approval')->name('approval.pending');
 
 // ── Google OAuth ────────────────────────────────────────────────
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
@@ -140,6 +141,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/admin/courses', [CourseController::class, 'adminIndex'])->name('api.admin.courses.index');
     Route::get('/api/admin/materials', [MaterialController::class, 'adminIndex'])->name('api.admin.materials.index');
     Route::get('/api/admin/faculty', [FacultyController::class, 'adminIndex'])->name('api.admin.faculty.index');
+    Route::get('/api/admin/faculty/pending', [FacultyController::class, 'pendingIndex'])->name('api.admin.faculty.pending');
+    Route::post('/api/admin/faculty/{id}/approve', [FacultyController::class, 'approve'])->name('api.admin.faculty.approve');
+    Route::post('/api/admin/faculty/{id}/reject', [FacultyController::class, 'reject'])->name('api.admin.faculty.reject');
     Route::post('/api/students/import', [StudentController::class, 'import'])->name('api.students.import');
 
     // Grading API
