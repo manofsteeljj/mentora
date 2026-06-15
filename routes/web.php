@@ -33,6 +33,27 @@ Route::view('/terms', 'terms')->name('terms');
 Route::view('/privacy', 'privacy')->name('privacy');
 Route::view('/pending-approval', 'auth.pending-approval')->name('approval.pending');
 
+// Polling endpoint — used by the pending page to check approval status in real-time.
+// Identified via session (no auth required).
+Route::get('/api/auth/approval-status', function (\Illuminate\Http\Request $request) {
+    $userId = $request->session()->get('pending_user_id');
+
+    if (!$userId) {
+        return response()->json(['status' => 'unknown']);
+    }
+
+    $user = \App\Models\User::find($userId);
+
+    if (!$user) {
+        return response()->json(['status' => 'unknown']);
+    }
+
+    return response()->json([
+        'status' => $user->status,   // pending | active | rejected
+        'name'   => $user->name,
+    ]);
+})->name('api.approval.status');
+
 // ── Google OAuth ────────────────────────────────────────────────
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');

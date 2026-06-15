@@ -35,6 +35,9 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
+        // Store user ID in session so the pending page can poll for status changes
+        $request->session()->put('pending_user_id', $user->id);
+
         // Do NOT log the user in — redirect to a pending-approval notice page
         return redirect()->route('approval.pending');
     }
