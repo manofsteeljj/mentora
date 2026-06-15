@@ -20,6 +20,7 @@ const AdminFaculty = lazy(() => import('./AdminFaculty'))
 const AdminSettings = lazy(() => import('./AdminSettings'))
 const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
+const DepEdImporter = lazy(() => import('./DepEdImporter'))
 
 function AdminPagePlaceholder({ title }) {
   return (
@@ -227,6 +228,15 @@ export default function DashboardLayout() {
               setActiveView('courses')
               setSelectedCourseForMaterials(null)
             }}
+          />
+        )
+      case 'deped-import':
+        if (userRole !== 'faculty') {
+          return <AdminPagePlaceholder title="DepEd Import" />
+        }
+        return (
+          <DepEdImporter
+            onBack={() => setActiveView('grading')}
           />
         )
       case 'grading':

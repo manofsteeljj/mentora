@@ -29,6 +29,15 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        User::firstOrCreate(
+            ['email' => 'faculty1@mentora.test'],
+            [
+                'name' => 'Teacher',
+                'password' => Hash::make('password1'),
+                'email_verified_at' => now(),
+            ]
+        );
+
         // Create an admin account used by admin routes / UI.
         User::firstOrCreate(
             ['email' => 'admin@mentora.local'],
