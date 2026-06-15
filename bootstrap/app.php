@@ -11,7 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+        ]);
+
+        // Apply to all 'auth' protected routes
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnsureAccountIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

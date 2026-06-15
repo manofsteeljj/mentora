@@ -26,6 +26,7 @@ class User extends Authenticatable
         'google_refresh_token',
         'avatar',
         'last_synced_at',
+        'status',
     ];
 
     /**
@@ -49,10 +50,14 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'last_synced_at' => 'datetime',
+            'password'          => 'hashed',
+            'last_synced_at'    => 'datetime',
         ];
     }
+
+    public function isPending(): bool  { return $this->status === 'pending'; }
+    public function isActive(): bool   { return $this->status === 'active'; }
+    public function isRejected(): bool { return $this->status === 'rejected'; }
 
     public function courses()
     {

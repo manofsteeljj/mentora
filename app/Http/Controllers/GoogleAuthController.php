@@ -54,9 +54,10 @@ class GoogleAuthController extends Controller
                 'google_refresh_token' => $googleUser->refreshToken ?? $user->google_refresh_token,
                 'avatar'               => $googleUser->getAvatar(),
                 'name'                 => $googleUser->getName(),
+                'status'               => 'active', // Google-authenticated users are auto-approved
             ]);
         } else {
-            // Create new user
+            // Create new user — Google OAuth = auto-approved
             $user = User::create([
                 'name'                 => $googleUser->getName(),
                 'email'                => $googleUser->getEmail(),
@@ -66,6 +67,7 @@ class GoogleAuthController extends Controller
                 'avatar'               => $googleUser->getAvatar(),
                 'password'             => null,
                 'email_verified_at'    => now(),
+                'status'               => 'active',
             ]);
         }
 
