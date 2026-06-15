@@ -14,6 +14,7 @@ import {
   CalendarCheck,
   Upload,
   Download,
+  TableProperties,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -158,6 +159,15 @@ export default function Sidebar({
               >
                 <ClipboardCheck className="w-4 h-4 mr-2" />
                 Grading
+              </Button>
+
+              <Button
+                variant={activeView === 'deped-import' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('deped-import')}
+              >
+                <TableProperties className="w-4 h-4 mr-2" />
+                DepEd Import
               </Button>
 
               <Button

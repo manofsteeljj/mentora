@@ -21,6 +21,11 @@ class AIController extends Controller
         }
         $material = Material::findOrFail($materialId);
         $assessment = Assessment::findOrFail($assessmentId);
+
+        // Ownership check
+        if ($material->course->user_id !== auth()->id()) {
+            abort(403, 'You do not own this material.');
+        }
         $prompt = "Generate 5 multiple choice questions (with 4 options each and correct answer) based on the following text:\n\n" . ($material->extracted_text ?? '');
 
         $provider = mb_strtolower((string) env('AI_PROVIDER', 'openrouter'));
@@ -192,39 +197,42 @@ class AIController extends Controller
         // Simple parsing: split by two newlines into blocks (each block should represent one question)
         $blocks = preg_split('/\r?\n\r?\n+/', trim($questionsText));
 
-        // Ensure we don't exceed DB column length. If you prefer, change column to TEXT in a migration.
         $maxLen = intval(env('QUESTION_TEXT_MAX_LENGTH', 1000));
 
-        // Log full AI output if it's large to help debugging/troubleshooting
         if (strlen($questionsText) > $maxLen) {
             try {
                 $logPath = storage_path('logs/ai_output_' . date('Ymd_His') . '.log');
                 file_put_contents($logPath, $questionsText . PHP_EOL, FILE_APPEND);
-            } catch (\Exception $e) {
-                // ignore logging errors
-            }
+            } catch (\Exception $e) {}
         }
+
+        $toInsert = [];
+        $now = now()->toDateTimeString();
 
         foreach ($blocks as $block) {
             $text = trim($block);
             if (! $text) continue;
 
-            $fullText = $text;
             if (mb_strlen($text) > $maxLen) {
-                // log this particular block and truncate before inserting
                 try {
                     $logPath = storage_path('logs/ai_block_' . date('Ymd_His') . '.log');
-                    file_put_contents($logPath, $fullText . PHP_EOL, FILE_APPEND);
+                    file_put_contents($logPath, $text . PHP_EOL, FILE_APPEND);
                 } catch (\Exception $e) {}
                 $text = mb_substr($text, 0, $maxLen);
             }
 
-            Question::create([
+            $toInsert[] = [
                 'assessment_id' => $assessment->id,
                 'question_type' => 'mcq',
                 'question_text' => $text,
-                'points' => 1
-            ]);
+                'points'        => 1,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+        }
+
+        if (! empty($toInsert)) {
+            Question::insert($toInsert);
         }
 
         return redirect()->route('assessments.show', ['id' => $assessment->id])->with('success', 'Questions generated successfully!');

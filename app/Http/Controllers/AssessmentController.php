@@ -5,12 +5,19 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Assessment;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth;
 
 class AssessmentController extends Controller
 {
     public function show($id)
     {
         $assessment = Assessment::with('questions', 'course')->findOrFail($id);
+
+        // Ownership check — only the course owner may view this assessment
+        if (!$assessment->course || (int) $assessment->course->user_id !== (int) Auth::id()) {
+            abort(403, 'You are not allowed to view this assessment.');
+        }
+
         $material = null;
         if ($assessment->course) {
             $material = $assessment->course->materials()->latest()->first();
