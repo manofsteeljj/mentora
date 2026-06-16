@@ -359,7 +359,7 @@ export default function DepEdImporter({ onBack }) {
     setStep('importing')
     const log     = []
     const sheets  = parsed.sheets
-    const total   = 1 + sheets.length  // 1 step per subject + student step
+    const total   = 2 + sheets.length  // course + students + one per subject
     let   current = 0
 
     const tick = (label) => {
@@ -368,73 +368,77 @@ export default function DepEdImporter({ onBack }) {
     }
 
     try {
-      // ── STEP A: Collect all unique student names ────────────────────────────
-      const nameSet = new Set()
-      sheets.forEach(s => s.students.forEach(st => {
-        if (st.name && st.name !== '0') nameSet.add(st.name)
-      }))
-      const uniqueStudents = Array.from(nameSet)
+      // ── STEP A: Create ONE course for the entire class section ─────────────
+      const section = meta.gradeSection || ''
+      const firstSheet = sheets[0]
+      tick('Creating class course…')
 
+      const cResp = await fetch('/api/courses', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          course_code:   section ? section.replace(/\s/g, '') : 'CLASS',
+          course_name:   section || 'Class Record',
+          description:   [meta.schoolName, meta.gradeSection, meta.schoolYear].filter(Boolean).join(' | '),
+          academic_term: meta.schoolYear || '',
+          section:       section,
+        }),
+      })
+      if (!cResp.ok) {
+        log.push(`⚠ Could not create course (${cResp.status})`)
+        setImportLog(log); setStep('done'); toast.error('Import failed: could not create course'); return
+      }
+      const cData = await cResp.json()
+      const courseId = cData.id
+      if (!courseId) { log.push('⚠ No course ID returned'); setImportLog(log); setStep('done'); return }
+
+      // ── STEP B: Collect all unique students across all sheets and import once ─
       tick('Importing student roster…')
 
-      // ── STEP B: Create one course per subject, import students, create grades ─
+      const normName = (s) => s.trim().toUpperCase().replace(/\s+/g, ' ')
+      const seenNames = new Map() // normName → index (for student_number)
+      const uniqueStudentRows = []
+      sheets.forEach(sheet => {
+        sheet.students.forEach(st => {
+          if (!st.name || st.name === '0') return
+          const key = normName(st.name)
+          if (!seenNames.has(key)) {
+            seenNames.set(key, uniqueStudentRows.length)
+            uniqueStudentRows.push({
+              student_number: String(uniqueStudentRows.length + 1).padStart(3, '0'),
+              name: st.name,
+              email: null,
+            })
+          }
+        })
+      })
+
+      const sResp = await fetch('/api/students/import', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+        body: JSON.stringify({ course_id: courseId, students: uniqueStudentRows }),
+      })
+      if (!sResp.ok) { log.push('⚠ Student import failed'); setImportLog(log); setStep('done'); return }
+
+      // Fetch student ID map for this course
+      const listResp = await fetch(`/api/students?course_id=${courseId}`, {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      })
+      const listData = await listResp.json()
+      const studentMap = new Map(
+        (listData.students || []).map(s => [normName(s.name), s.id])
+      )
+
+      // ── STEP C: For each subject sheet, create assessments + grades ──────────
       for (const sheet of sheets) {
         const { subject, quarter, weights, students } = sheet
-        const code = subjectCode(subject)
-        const section = meta.gradeSection || ''
-        const courseName = subject.charAt(0) + subject.slice(1).toLowerCase()
 
-        tick(`Creating course: ${subject}…`)
+        tick(`Importing grades: ${subject}…`)
 
-        // Create course
-        const cResp = await fetch('/api/courses', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getToken() },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            course_code:   code + (section ? '-' + section.replace(/\s/g, '') : ''),
-            course_name:   courseName,
-            description:   [meta.schoolName, meta.gradeSection, meta.schoolYear].filter(Boolean).join(' | '),
-            academic_term: meta.schoolYear || '',
-            section:       section,
-          }),
-        })
-        if (!cResp.ok) {
-          log.push(`⚠ Could not create course for ${subject} (${cResp.status})`)
-          continue
-        }
-        const cData = await cResp.json()
-        const courseId = cData.id
-        if (!courseId) { log.push(`⚠ No course ID returned for ${subject}`); continue }
-
-        // Import students into this course
-        const studentRows = students.map((st, i) => ({
-          student_number: String(i + 1).padStart(3, '0'),
-          name:           st.name,
-          email:          null,
-        }))
-
-        const sResp = await fetch('/api/students/import', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getToken() },
-          credentials: 'same-origin',
-          body: JSON.stringify({ course_id: courseId, students: studentRows }),
-        })
-        if (!sResp.ok) { log.push(`⚠ Student import failed for ${subject}`); continue }
-        const sData = await sResp.json()
-
-        // Fetch student ID map for this course
-        const listResp = await fetch(`/api/students?course_id=${courseId}`, {
-          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
-          credentials: 'same-origin',
-        })
-        const listData = await listResp.json()
-        const normName = (s) => s.trim().toUpperCase().replace(/\s+/g, ' ')
-        const studentMap = new Map(
-          (listData.students || []).map(s => [normName(s.name), s.id])
-        )
-
-        // Create gradebook assessments
+        // Create gradebook assessments for this subject
         const postAssessment = async (name, type, weight) => {
           const r = await fetch('/api/gradebook/assessments', {
             method: 'POST',
@@ -475,12 +479,12 @@ export default function DepEdImporter({ onBack }) {
         }
 
         const note = unmatched > 0 ? ` (${unmatched} unmatched)` : ''
-        log.push(`✓ ${subject} (${quarter}) — Course created · ${matched} students · ${gradeRows.length} grades${note}`)
+        log.push(`✓ ${subject} (${quarter}) — ${matched} students · ${gradeRows.length} grades${note}`)
       }
 
       setImportLog(log)
       setStep('done')
-      toast.success('Import complete!')
+      toast.success(`Import complete! ${uniqueStudentRows.length} students · ${sheets.length} subjects`)
     } catch (err) {
       toast.error('Import failed: ' + (err?.message || 'unknown'))
       console.error(err)
