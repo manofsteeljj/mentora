@@ -1,5 +1,4 @@
 import {
-  GraduationCap,
   MessageSquare,
   FileText,
   BookOpen,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
+import logoImage from '../../logo/MENTORA LOGO.png'
 
 function formatTimestamp(value) {
   if (!value) return ''
@@ -42,13 +42,7 @@ export default function Sidebar({
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <div className="h-10 w-10 rounded-lg bg-green-700 text-white flex items-center justify-center">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="font-semibold">Mentora</h2>
-            <p className="text-xs text-gray-500">AI Teaching Assistant</p>
-          </div>
+          <img src={logoImage} alt="Mentora" className="h-10 object-contain" />
         </div>
       </div>
 

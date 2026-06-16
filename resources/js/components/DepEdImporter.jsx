@@ -261,7 +261,7 @@ async function parseDepEdExcel(file) {
             const v = row[c]
             if (v !== '' && v !== null && !isNaN(Number(v))) nums.push({ col: c, val: Number(v) })
           }
-          const ps = nums.filter(x => x.val > 50 && x.val <= 100 && !Number.isInteger(x.val))
+          const ps = nums.filter(x => x.val > 50 && x.val <= 100)
           if (ps.length >= 3) { wwPS = ps[0].val; ptPS = ps[1].val; qaPS = ps[2].val; initialGrade = ps[3]?.val ?? null }
           else if (ps.length === 2) { wwPS = ps[0].val; ptPS = ps[1].val }
           const late = nums.filter(x => x.col > row.length - 8 && x.val >= 60 && x.val <= 100 && !Number.isInteger(x.val))
@@ -429,8 +429,9 @@ export default function DepEdImporter({ onBack }) {
           credentials: 'same-origin',
         })
         const listData = await listResp.json()
+        const normName = (s) => s.trim().toUpperCase().replace(/\s+/g, ' ')
         const studentMap = new Map(
-          (listData.students || []).map(s => [s.name.trim().toUpperCase(), s.id])
+          (listData.students || []).map(s => [normName(s.name), s.id])
         )
 
         // Create gradebook assessments
@@ -455,7 +456,7 @@ export default function DepEdImporter({ onBack }) {
         let matched = 0, unmatched = 0
 
         for (const st of students) {
-          const sid = studentMap.get(st.name.trim().toUpperCase())
+          const sid = studentMap.get(normName(st.name))
           if (!sid) { unmatched++; continue }
           matched++
           if (wwId && st.wwPS !== null) gradeRows.push({ student_id: Number(sid), assessment_id: Number(wwId), score: r2(st.wwPS) })
