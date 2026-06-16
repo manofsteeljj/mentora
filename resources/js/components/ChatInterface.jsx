@@ -4,9 +4,10 @@ import remarkGfm from 'remark-gfm'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Badge } from './ui/badge'
-import { Send, Bot, User, Loader2, FileText, Download, Plus, X } from 'lucide-react'
+import { Send, User, Loader2, FileText, Download, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ContextPanel from './ContextPanel'
+import logoImage from '../../logo/MENTORA LOGO.png'
 
 let nextId = 1
 function generateId() {
@@ -352,7 +353,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
           {messages.length === 0 && !isLoading ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Bot className="w-8 h-8 text-green-700" />
+                <img src={logoImage} alt="Mentora" className="w-10 h-10 object-contain" />
               </div>
               <h3 className="text-lg font-medium mb-2">Welcome to Mentora!</h3>
               <p className="text-gray-500 mb-4">I&apos;m your context-aware teaching assistant.</p>
@@ -408,7 +409,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
                   message.role === 'assistant' ? 'bg-green-100' : 'bg-gray-200'
                 }`}>
                   {message.role === 'assistant' ? (
-                    <Bot className="w-5 h-5 text-green-700" />
+                    <img src={logoImage} alt="Mentora" className="w-5 h-5 object-contain" />
                   ) : (
                     <User className="w-5 h-5 text-gray-600" />
                   )}
@@ -495,7 +496,7 @@ export default function ChatInterface({ conversationId = null, onConversationCre
           {isLoading && (
             <div className="flex gap-3">
               <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100">
-                <Bot className="w-5 h-5 text-green-700" />
+                <img src={logoImage} alt="Mentora" className="w-5 h-5 object-contain" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
