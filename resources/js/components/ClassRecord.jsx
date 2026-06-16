@@ -19,11 +19,218 @@ import {
 import { Progress } from './ui/progress'
 import { formatCourseLabel } from '../lib/courseDisplay'
 
+// ─── DepEd Transmutation ──────────────────────────────────────────────────────
+function transmute(g) {
+  g = Number(g)
+  if (isNaN(g)) return null
+  if (g >= 100) return 100
+  if (g < 0) return 60
+  const table = [
+    [98.40,100],[96.80,99],[95.20,98],[93.60,97],[92.00,96],
+    [90.40,95],[88.80,94],[87.20,93],[85.60,92],[84.00,91],
+    [82.40,90],[80.80,89],[79.20,88],[77.60,87],[76.00,86],
+    [74.40,85],[72.80,84],[71.20,83],[69.60,82],[68.00,81],
+    [66.40,80],[64.80,79],[63.20,78],[61.60,77],[60.00,76],
+    [56.00,75],[52.00,74],[48.00,73],[44.00,72],[40.00,71],
+    [36.00,70],[32.00,69],[28.00,68],[24.00,67],[20.00,66],
+    [16.00,65],[12.00,64],[8.00,63],[4.00,62],[0,61],
+  ]
+  for (let i = 0; i < table.length - 1; i++) {
+    if (g >= table[i][0]) return table[i][1]
+  }
+  return 61
+}
+
+// ─── Subject weights ──────────────────────────────────────────────────────────
+function getWeights(subject) {
+  const upper = (subject || '').toUpperCase()
+  if (upper.includes('MATH'))                        return { ww: 0.40, pt: 0.40, qa: 0.20 }
+  if (upper.includes('SCIENCE'))                     return { ww: 0.40, pt: 0.40, qa: 0.20 }
+  if (upper.includes('TLE') || upper.includes('PANTAHANAN')) return { ww: 0.20, pt: 0.60, qa: 0.20 }
+  return { ww: 0.30, pt: 0.50, qa: 0.20 }
+}
+
+function quarterLabel(q) {
+  const map = { '1st': 'FIRST QUARTER', '2nd': 'SECOND QUARTER', '3rd': 'THIRD QUARTER', '4th': 'FOURTH QUARTER' }
+  return map[q] || (q + ' QUARTER')
+}
+
+// ─── Build one DepEd sheet ────────────────────────────────────────────────────
+function buildDepEdSheet(XLSX, wb, sheetName, course, students, gradebook, teacherName) {
+  const aoa = [] // array of arrays
+
+  const subject = (course.course_name || '').toUpperCase()
+  const weights = getWeights(subject)
+  const section = course.section || ''
+  const schoolYear = course.academic_term || ''
+  const period = gradebook?.period || '4th'
+  const qLabel = quarterLabel(period)
+
+  const wwPct = Math.round(weights.ww * 100)
+  const ptPct = Math.round(weights.pt * 100)
+  const qaPct = Math.round(weights.qa * 100)
+
+  // Header rows
+  aoa.push(['Class Record'])
+  aoa.push(['(Pursuant to Deped Order 8 series of 2015)'])
+  aoa.push([])
+  aoa.push(['', 'REGION', '', '', 1, '', 'DIVISION', '', 'LA UNION', '', 'DISTRICT', '', ''])
+  aoa.push(['SCHOOL NAME', '', '', '', '', '', '', '', '', 'SCHOOL ID', '', ''])
+  aoa.push([qLabel, '', '', 'GRADE & SECTION:', '', section, '', 'TEACHER:', '', teacherName, '', 'SCHOOL YEAR:', '', schoolYear])
+  aoa.push(['LEARNERS\' NAMES', '', '', '', '', '', '', 'SUBJECT:', '', course.course_name || ''])
+  aoa.push([])
+
+  // Column headers
+  const wwHdr = [`WRITTEN WORKS (${wwPct}%)`]
+  for (let i = 1; i < 10; i++) wwHdr.push('')
+  wwHdr.push('Total', 'PS', 'WS')
+
+  const ptHdr = [`PERFORMANCE TASKS (${ptPct}%)`]
+  for (let i = 1; i < 10; i++) ptHdr.push('')
+  ptHdr.push('Total', 'PS', 'WS')
+
+  const qaHdr = [`QUARTERLY ASSESSMENT (${qaPct}%)`, '', 'PS', 'WS']
+
+  aoa.push(['', ...wwHdr, ...ptHdr, ...qaHdr, 'Initial', 'Quarterly'])
+
+  // Sub-header: item numbers
+  const wwNums = ['']; for (let i = 1; i <= 10; i++) wwNums.push(i); wwNums.push('Total', 'PS', 'WS')
+  const ptNums = []; for (let i = 1; i <= 10; i++) ptNums.push(i); ptNums.push('Total', 'PS', 'WS')
+  const qaNums = ['1', '', 'PS', 'WS']
+  aoa.push([...wwNums, ...ptNums, ...qaNums, '', ''])
+
+  // HPS row
+  const wwHps = new Array(13).fill(''); wwHps[10] = 100; wwHps[11] = 100; wwHps[12] = `${wwPct}%`
+  const ptHps = new Array(13).fill(''); ptHps[10] = 100; ptHps[11] = 100; ptHps[12] = `${ptPct}%`
+  const qaHps = [40, '', 100, `${qaPct}%`]
+  aoa.push(['HIGHEST POSSIBLE SCORE', ...wwHps, ...ptHps, ...qaHps, '', ''])
+
+  // Build grade map
+  const assessments = gradebook?.assessments || []
+  const grades = gradebook?.grades || []
+  const gradeMap = {}
+  for (const g of grades) {
+    if (!gradeMap[g.student_id]) gradeMap[g.student_id] = {}
+    gradeMap[g.student_id][g.assessment_id] = g.score
+  }
+
+  const wwAssess = assessments.filter(a => ['activity', 'quiz'].includes(a.type))
+  const ptAssess = assessments.filter(a => ['project', 'assignment'].includes(a.type))
+  const qaAssess = assessments.filter(a => a.type === 'exam')
+
+  // Student rows helper
+  const buildRow = (num, student) => {
+    const sg = gradeMap[student.id] || {}
+
+    // WW
+    const wwScores = new Array(10).fill('')
+    let wwRaw = 0, wwMax = 0
+    for (let i = 0; i < Math.min(wwAssess.length, 10); i++) {
+      const sc = sg[wwAssess[i].id]
+      if (sc != null) { wwScores[i] = Number(sc); wwRaw += Number(sc); wwMax += Number(wwAssess[i].max_score || 100) }
+    }
+    const wwPs = wwMax > 0 ? Math.round((wwRaw / wwMax) * 10000) / 100 : null
+    const wwWs = wwPs != null ? Math.round(wwPs * weights.ww * 100) / 100 : ''
+    const wwRow = [...wwScores, wwMax > 0 ? wwRaw : '', wwPs ?? '', wwWs]
+
+    // PT
+    const ptScores = new Array(10).fill('')
+    let ptRaw = 0, ptMax = 0
+    for (let i = 0; i < Math.min(ptAssess.length, 10); i++) {
+      const sc = sg[ptAssess[i].id]
+      if (sc != null) { ptScores[i] = Number(sc); ptRaw += Number(sc); ptMax += Number(ptAssess[i].max_score || 100) }
+    }
+    const ptPs = ptMax > 0 ? Math.round((ptRaw / ptMax) * 10000) / 100 : null
+    const ptWs = ptPs != null ? Math.round(ptPs * weights.pt * 100) / 100 : ''
+    const ptRow = [...ptScores, ptMax > 0 ? ptRaw : '', ptPs ?? '', ptWs]
+
+    // QA
+    let qaScore = '', qaPs = null, qaWs = ''
+    if (qaAssess.length > 0) {
+      const sc = sg[qaAssess[0].id]
+      if (sc != null) {
+        qaScore = Number(sc)
+        const qMax = Number(qaAssess[0].max_score || 40)
+        qaPs = Math.round((Number(sc) / qMax) * 10000) / 100
+        qaWs = Math.round(qaPs * weights.qa * 100) / 100
+      }
+    }
+    const qaRow = [qaScore, '', qaPs ?? '', qaWs]
+
+    // Initial grade
+    let initialGrade = ''
+    let quarterly = ''
+    if (wwPs != null && ptPs != null && qaPs != null) {
+      initialGrade = Math.round((wwPs * weights.ww + ptPs * weights.pt + qaPs * weights.qa) * 100) / 100
+    } else {
+      const periodKey = { '1st': 'first', '2nd': 'second', '3rd': 'third', '4th': 'fourth' }[period]
+      const avg = student.grades?.[periodKey]
+      if (avg != null) initialGrade = Math.round(avg * 100) / 100
+    }
+    if (initialGrade !== '') quarterly = transmute(initialGrade) ?? ''
+
+    return [num, student.name, ...wwRow, ...ptRow, ...qaRow, initialGrade, quarterly]
+  }
+
+  const males = students.filter(s => (s.gender || '').toUpperCase() !== 'F')
+  const females = students.filter(s => (s.gender || '').toUpperCase() === 'F')
+
+  aoa.push(['MALE'])
+  let idx = 1
+  for (const s of males) { aoa.push(buildRow(idx++, s)) }
+
+  aoa.push(['FEMALE'])
+  idx = 1
+  for (const s of females) { aoa.push(buildRow(idx++, s)) }
+
+  aoa.push([])
+  aoa.push(['', 'MEAN'])
+  aoa.push(['', '% OF MASTERY'])
+  aoa.push([])
+  aoa.push(['Prepared by:', '', '', '', '', 'Noted:'])
+  aoa.push([teacherName])
+  aoa.push(['Teacher'])
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
+}
+
+// ─── Export entry point ───────────────────────────────────────────────────────
+async function exportDepEdExcel(courses, classRows, gradebookByCourse, teacherName) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+
+  const studentsByCourse = {}
+  for (const s of classRows) {
+    const cid = String(s.courseId || '')
+    if (!studentsByCourse[cid]) studentsByCourse[cid] = []
+    studentsByCourse[cid].push(s)
+  }
+
+  for (const course of courses) {
+    const cid = String(course.id)
+    const courseStudents = studentsByCourse[cid] || []
+    if (!courseStudents.length) continue
+    const gradebook = gradebookByCourse[cid] || null
+    const sheetName = (course.course_code || course.course_name || 'SUBJ').replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 28)
+    buildDepEdSheet(XLSX, wb, sheetName, course, courseStudents, gradebook, teacherName)
+  }
+
+  if (!wb.SheetNames.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['No data']]), 'Sheet1')
+  }
+
+  XLSX.writeFile(wb, `ClassRecord_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 export default function ClassRecord() {
   const [courses, setCourses] = useState([])
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [teacherName, setTeacherName] = useState('')
+  const [gradebookByCourse, setGradebookByCourse] = useState({})
 
   const [selectedCourse, setSelectedCourse] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,6 +281,61 @@ export default function ClassRecord() {
   useEffect(() => {
     fetchStudents(selectedCourse).catch(() => {})
   }, [selectedCourse, fetchStudents])
+
+  // Fetch logged-in user name for the teacher field in export
+  useEffect(() => {
+    fetch('/api/user', {
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+      credentials: 'same-origin',
+    })
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setTeacherName(data?.name || ''))
+      .catch(() => {})
+  }, [])
+
+  // Fetch gradebook assessments + grades for export
+  useEffect(() => {
+    if (!courses.length) return
+    const coursesToFetch = selectedCourse === 'all'
+      ? courses.map(c => c.id)
+      : [selectedCourse]
+    const periods = ['1st', '2nd', '3rd', '4th']
+
+    Promise.all(
+      coursesToFetch.flatMap(courseId =>
+        periods.map(period =>
+          Promise.all([
+            fetch(`/api/gradebook/assessments?course_id=${courseId}&grading_period=${encodeURIComponent(period)}`, {
+              headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+              credentials: 'same-origin',
+            }).then(r => r.ok ? r.json() : { assessments: [] }),
+            fetch(`/api/gradebook/grades?course_id=${courseId}&grading_period=${encodeURIComponent(period)}`, {
+              headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+              credentials: 'same-origin',
+            }).then(r => r.ok ? r.json() : { grades: [] }),
+          ]).then(([aData, gData]) => ({
+            courseId: String(courseId),
+            period,
+            assessments: aData.assessments || [],
+            grades: gData.grades || [],
+          }))
+        )
+      )
+    )
+      .then(results => {
+        // Pick the period with the most grade data per course
+        const map = {}
+        for (const result of results) {
+          const cid = result.courseId
+          const score = result.grades.length + result.assessments.length
+          if (!map[cid] || score > (map[cid].grades.length + map[cid].assessments.length)) {
+            map[cid] = result
+          }
+        }
+        setGradebookByCourse(map)
+      })
+      .catch(() => {})
+  }, [courses, selectedCourse])
 
   const courseOptions = useMemo(() => {
     return courses.map(c => ({
@@ -223,6 +485,20 @@ export default function ClassRecord() {
     setEditValue('')
   }
 
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const exportCourses = selectedCourse === 'all'
+        ? courses
+        : courses.filter(c => String(c.id) === selectedCourse)
+      await exportDepEdExcel(exportCourses, classRows, gradebookByCourse, teacherName)
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
       {/* Header */}
@@ -240,9 +516,9 @@ export default function ClassRecord() {
                 <Save className="w-4 h-4" />
                 Save Changes
               </Button>
-              <Button className="gap-2 bg-green-700 hover:bg-green-800">
+              <Button className="gap-2 bg-green-700 hover:bg-green-800" onClick={handleExport} disabled={exporting}>
                 <Download className="w-4 h-4" />
-                Export to Excel
+                {exporting ? 'Exporting…' : 'Export to Excel'}
               </Button>
             </div>
           </div>
