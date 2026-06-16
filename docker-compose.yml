@@ -1,0 +1,49 @@
+services:
+  app:
+    image: php:8.3-fpm
+    container_name: mentora_app
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    depends_on:
+      - db
+    networks:
+      - mentora
+    build: 
+      context: .
+      dockerfile: docker/app/Dockerfile 
+
+  web:
+    image: nginx:alpine
+    container_name: mentora_web
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - mentora
+
+  db:
+    image: mysql:8
+    container_name: mentora_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: mentora
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: root
+      MYSQL_USER: mentora
+    ports:
+      - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - mentora
+
+volumes:
+  dbdata:
+
+networks:
+  mentora:
