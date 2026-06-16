@@ -9,6 +9,8 @@ RUN composer install \
     --optimize-autoloader \
     --no-scripts
 
+RUN docker-php-ext-install pdo pdo_mysql
+
 FROM node:20-alpine AS assets
 WORKDIR /app
 
