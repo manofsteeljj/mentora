@@ -232,7 +232,7 @@ export default function ClassRecord() {
   const [teacherName, setTeacherName] = useState('')
   const [gradebookByCourse, setGradebookByCourse] = useState({})
 
-  const [selectedCourse, setSelectedCourse] = useState('all')
+  const [selectedCourse, setSelectedCourse] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingCell, setEditingCell] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -255,7 +255,7 @@ export default function ClassRecord() {
   const fetchStudents = useCallback(async (courseId) => {
     setLoading(true)
     try {
-      const url = courseId && courseId !== 'all'
+      const url = courseId
         ? `/api/students?course_id=${encodeURIComponent(courseId)}`
         : '/api/students'
 
@@ -296,9 +296,9 @@ export default function ClassRecord() {
   // Fetch gradebook assessments + grades for export
   useEffect(() => {
     if (!courses.length) return
-    const coursesToFetch = selectedCourse === 'all'
-      ? courses.map(c => c.id)
-      : [selectedCourse]
+    const coursesToFetch = selectedCourse
+      ? [selectedCourse]
+      : courses.map(c => c.id)
     const periods = ['1st', '2nd', '3rd', '4th']
 
     Promise.all(
@@ -343,6 +343,13 @@ export default function ClassRecord() {
       label: formatCourseLabel(c),
     }))
   }, [courses])
+
+  // Auto-select first course once courses load
+  useEffect(() => {
+    if (!selectedCourse && courseOptions.length > 0) {
+      setSelectedCourse(courseOptions[0].id)
+    }
+  }, [courseOptions, selectedCourse])
 
   const splitIntoFour = (items) => {
     const n = items.length
@@ -419,7 +426,7 @@ export default function ClassRecord() {
 
   const filteredStudents = useMemo(() => {
     return classRows.filter(student => {
-      const matchesCourse = selectedCourse === 'all' || student.courseId === selectedCourse
+      const matchesCourse = selectedCourse ? student.courseId === selectedCourse : false
       const matchesSearch =
         student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         String(student.studentNumber || '').includes(searchQuery)
@@ -488,9 +495,9 @@ export default function ClassRecord() {
   const handleExport = async () => {
     setExporting(true)
     try {
-      const exportCourses = selectedCourse === 'all'
-        ? courses
-        : courses.filter(c => String(c.id) === selectedCourse)
+      const exportCourses = selectedCourse
+        ? courses.filter(c => String(c.id) === selectedCourse)
+        : courses
       await exportDepEdExcel(exportCourses, classRows, gradebookByCourse, teacherName)
     } catch (err) {
       console.error('Export failed:', err)
@@ -541,7 +548,6 @@ export default function ClassRecord() {
                 onChange={(e) => setSelectedCourse(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="all">All Courses</option>
                 {courseOptions.map(course => (
                   <option key={course.id} value={course.id}>{course.label}</option>
                 ))}
@@ -632,10 +638,7 @@ export default function ClassRecord() {
                   </CardDescription>
                 </div>
                 <Badge variant="outline" className="text-sm">
-                  {selectedCourse === 'all'
-                    ? 'All Courses'
-                    : (courseOptions.find(c => c.id === selectedCourse)?.label || 'Selected Course')
-                  }
+                  {courseOptions.find(c => c.id === selectedCourse)?.label || 'Select a course'}
                 </Badge>
               </div>
             </CardHeader>
