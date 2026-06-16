@@ -32,7 +32,7 @@ function getToken() {
 export default function Students() {
   const [students, setStudents] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState('all')
+  const [selectedCourse, setSelectedCourse] = useState('')
   const [expandedStudents, setExpandedStudents] = useState(new Set())
   const [sortBy, setSortBy] = useState('name')
   const [loading, setLoading] = useState(true)
@@ -107,15 +107,18 @@ export default function Students() {
     const byId = new Map()
     students.forEach((s) => {
       if (!s.courseId) return
-      const label = s.section ? `${s.courseLabel} (Section ${s.section})` : s.courseLabel
+      const label = s.section ? `${s.courseLabel} (${s.section})` : s.courseLabel
       if (!byId.has(s.courseId)) byId.set(s.courseId, label)
     })
-
-    return [
-      { id: 'all', label: 'All Courses' },
-      ...Array.from(byId.entries()).map(([id, label]) => ({ id, label })),
-    ]
+    return Array.from(byId.entries()).map(([id, label]) => ({ id, label }))
   }, [students])
+
+  // Auto-select first course once options load
+  useEffect(() => {
+    if (!selectedCourse && courseOptions.length > 0) {
+      setSelectedCourse(courseOptions[0].id)
+    }
+  }, [courseOptions, selectedCourse])
 
   const selectedCourseOption = useMemo(
     () => courseOptions.find((c) => c.id === selectedCourse),
@@ -156,8 +159,8 @@ export default function Students() {
   }
 
   const handleImportClick = () => {
-    if (selectedCourse === 'all') {
-      toast.error('Select a specific course before importing students.')
+    if (!selectedCourse) {
+      toast.error('Select a course before importing students.')
       return
     }
     fileInputRef.current?.click?.()
@@ -227,7 +230,7 @@ export default function Students() {
       const worksheet = XLSX.utils.json_to_sheet(rows)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Students')
-      const fileTag = selectedCourse === 'all' ? 'all-courses' : `course-${selectedCourse}`
+      const fileTag = selectedCourse ? `course-${selectedCourse}` : 'students'
       XLSX.writeFile(workbook, `students_${fileTag}.xlsx`)
       toast.success('Students exported successfully')
     } catch {
@@ -252,11 +255,9 @@ export default function Students() {
   }
 
   const getFilteredStudents = () => {
-    let filtered = students
-
-    if (selectedCourse !== 'all') {
-      filtered = filtered.filter(s => s.courseId === selectedCourse)
-    }
+    let filtered = selectedCourse
+      ? students.filter(s => s.courseId === selectedCourse)
+      : []
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
@@ -355,7 +356,7 @@ export default function Students() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{totalStudents}</div>
-              <p className="text-xs text-gray-600 mt-1">{selectedCourse === 'all' ? 'across all courses' : `in ${selectedCourseOption?.label || 'selected course'}`}</p>
+              <p className="text-xs text-gray-600 mt-1">in {selectedCourseOption?.label || '—'}</p>
             </CardContent>
           </Card>
 

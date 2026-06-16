@@ -190,19 +190,20 @@ export default function GradingSystem() {
 
   const calculateFinalGrade = (studentId) => {
     const periodAssessments = getFilteredAssessments()
-    let totalWeightedScore = 0
-    let totalWeight = 0
+    const totalWeight = periodAssessments.reduce((acc, a) => acc + a.weight, 0)
+    if (totalWeight === 0) return 0
 
+    let totalWeightedScore = 0
     periodAssessments.forEach(assessment => {
       const grade = getGrade(studentId, assessment.id)
       if (typeof grade === 'number') {
         const percentage = (grade / assessment.maxScore) * 100
-        totalWeightedScore += percentage * (assessment.weight / 100)
-        totalWeight += assessment.weight
+        // Normalize each assessment's contribution so total always = 100%
+        totalWeightedScore += percentage * (assessment.weight / totalWeight)
       }
     })
 
-    return totalWeight > 0 ? totalWeightedScore : 0
+    return totalWeightedScore
   }
 
   const getTypeColor = (type) => {
