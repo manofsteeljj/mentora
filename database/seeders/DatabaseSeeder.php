@@ -47,7 +47,7 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
-
+        /**  
         $this->call([
             CourseSeeder::class,
             StudentSeeder::class,
@@ -55,5 +55,6 @@ class DatabaseSeeder extends Seeder
             GradeSeeder::class,
             AttendanceSeeder::class,
         ]);
+        */
     }
 }

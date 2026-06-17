@@ -38,6 +38,8 @@ function transmute(g) {
   return 61
 }
 
+// gago ang pangit
+
 // ─── Subject weights ──────────────────────────────────────────────────────────
 const SUBJECT_WEIGHTS = {
   FILIPINO:    { ww:0.30, pt:0.50, qa:0.20 },
@@ -60,6 +62,8 @@ function getWeights(subject) {
   const key = Object.keys(SUBJECT_WEIGHTS).find(k => upper.includes(k))
   return key ? SUBJECT_WEIGHTS[key] : { ww:0.30, pt:0.50, qa:0.20 }
 }
+
+// ass hard coded 
 
 // ─── Subject → short code ─────────────────────────────────────────────────────
 function subjectCode(subject) {
@@ -102,13 +106,53 @@ function findColumnMap(raw) {
 
   if (psIndices.length < 2) return null
 
-  const lastWsCol        = wsIndices[wsIndices.length - 1] ?? -1
-  const initialGradeCol  = lastWsCol >= 0 ? lastWsCol + 1 : -1
+  // Individual item cols sit between group-start and their PS column
+  // WW items: from first data col after col 1 (name) up to psIndices[0]-2 (before Total col)
+  // PT items: from psIndices[0]+2 (after WW WS col) up to psIndices[1]-2
+  // QA items: from psIndices[1]+2 up to psIndices[last]-2
+
+  // Detect group boundaries using HPS row — non-empty numeric cells before Total
+  const hps = raw[hpsRow]
+
+  const getItemCols = (startCol, psCol) => {
+    // Total col is psCol - 1, items are startCol..psCol-2
+    const cols = []
+    for (let c = startCol; c <= psCol - 2; c++) {
+      const v = hps[c]
+      const n = Number(v)
+      if (v !== '' && v !== null && v !== undefined && !isNaN(n) && n > 0) {
+        cols.push({ col: c, maxScore: n })
+      }
+    }
+    return cols
+  }
+
+  // WW starts right after the name col (col 2 typically, but scan from col 2)
+  const wwStartCol = 2
+  const wwItemCols = getItemCols(wwStartCol, psIndices[0])
+
+  // PT starts after WW WS col
+  const wwWsCol = wsIndices[0] ?? psIndices[0] + 1
+  const ptStartCol = wwWsCol + 1
+  const ptItemCols = getItemCols(ptStartCol, psIndices[1])
+
+  // QA starts after PT WS col
+  const ptWsCol = wsIndices.length > 1 ? wsIndices[1] : psIndices[1] + 1
+  const qaStartCol = ptWsCol + 1
+  const qaPsCol = psIndices[psIndices.length - 1]
+  const qaItemCols = getItemCols(qaStartCol, qaPsCol)
+
+  const lastWsCol       = wsIndices[wsIndices.length - 1] ?? -1
+  const initialGradeCol = lastWsCol >= 0 ? lastWsCol + 1 : -1
 
   return {
+    wwItemCols,   // [{col, maxScore}, ...]
+    ptItemCols,
+    qaItemCols,
+    // legacy PS cols kept for fallback
     wwPsCol:        psIndices[0],
     ptPsCol:        psIndices[1],
-    qaPsCol:        psIndices[psIndices.length - 1],
+    qaPsCol,
     initialGradeCol,
     hpsRow,
   }
@@ -240,6 +284,7 @@ async function parseDepEdExcel(file) {
         const name = String(row[1] || '').trim()
         if (!isName(name)) continue
 
+        let wwScores = [], ptScores = [], qaScores = []
         let wwPS = null, ptPS = null, qaPS = null, initialGrade = null
 
         if (colMap) {
@@ -250,12 +295,19 @@ async function parseDepEdExcel(file) {
             const n = Number(v)
             return isNaN(n) ? null : n
           }
+
+          // Individual item scores
+          wwScores = colMap.wwItemCols.map(({ col, maxScore }) => ({ score: g(col), maxScore }))
+          ptScores = colMap.ptItemCols.map(({ col, maxScore }) => ({ score: g(col), maxScore }))
+          qaScores = colMap.qaItemCols.map(({ col, maxScore }) => ({ score: g(col), maxScore }))
+
+          // Also grab PS cols as fallback for grade computation
           wwPS         = g(colMap.wwPsCol)
           ptPS         = g(colMap.ptPsCol)
           qaPS         = g(colMap.qaPsCol)
           initialGrade = colMap.initialGradeCol >= 0 ? g(colMap.initialGradeCol) : null
         } else {
-          // Fallback
+          // Fallback — no individual items available
           const nums = []
           for (let c = 2; c < row.length; c++) {
             const v = row[c]
@@ -268,7 +320,7 @@ async function parseDepEdExcel(file) {
           if (!initialGrade && late.length) initialGrade = late[0].val
         }
 
-        students.push({ name, gender, wwPS, ptPS, qaPS, initialGrade })
+        students.push({ name, gender, wwScores, ptScores, qaScores, wwPS, ptPS, qaPS, initialGrade })
       }
     }
 
@@ -427,22 +479,58 @@ export default function DepEdImporter({ onBack }) {
           (listData.students || []).map(s => [normName(s.name), s.id])
         )
 
-        // Create gradebook assessments for this subject
-        const postAssessment = async (name, type, weight) => {
+        // Create gradebook assessments — one per individual item
+        const postAssessment = async (name, type, maxScore, weight) => {
           const r = await fetch('/api/gradebook/assessments', {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getToken() },
             credentials: 'same-origin',
-            body: JSON.stringify({ course_id: courseId, grading_period: quarter, name, type, max_score: 100, weight }),
+            body: JSON.stringify({ course_id: courseId, grading_period: quarter, name, type, max_score: maxScore, weight }),
           })
           if (!r.ok) return null
           const d = await r.json()
           return d?.assessment?.id ?? null
         }
 
-        const wwId = await postAssessment(`Written Works`,        'activity', Math.round(weights.ww * 100))
-        const ptId = await postAssessment(`Performance Tasks`,    'project',  Math.round(weights.pt * 100))
-        const qaId = await postAssessment(`Quarterly Assessment`, 'exam',     Math.round(weights.qa * 100))
+        // Get item definitions from the first student that has data
+        const sampleStudent = students.find(st => st.wwScores?.length || st.ptScores?.length || st.qaScores?.length)
+        const wwItems  = sampleStudent?.wwScores || []
+        const ptItems  = sampleStudent?.ptScores || []
+        const qaItems  = sampleStudent?.qaScores || []
+
+        // Per-item weight = group weight / item count (integer, min 1)
+        const wwItemWeight = wwItems.length > 0 ? Math.max(1, Math.round((weights.ww * 100) / wwItems.length)) : 0
+        const ptItemWeight = ptItems.length > 0 ? Math.max(1, Math.round((weights.pt * 100) / ptItems.length)) : 0
+        const qaItemWeight = qaItems.length > 0 ? Math.max(1, Math.round((weights.qa * 100) / qaItems.length)) : 0
+
+        // Create WW assessments
+        const wwIds = []
+        for (let i = 0; i < wwItems.length; i++) {
+          const id = await postAssessment(`WW${i + 1}`, 'activity', wwItems[i].maxScore || 10, wwItemWeight)
+          wwIds.push(id)
+        }
+
+        // Create PT assessments
+        const ptIds = []
+        for (let i = 0; i < ptItems.length; i++) {
+          const id = await postAssessment(`PT${i + 1}`, 'project', ptItems[i].maxScore || 10, ptItemWeight)
+          ptIds.push(id)
+        }
+
+        // Create QA assessments
+        const qaIds = []
+        for (let i = 0; i < qaItems.length; i++) {
+          const id = await postAssessment(`QA${i + 1}`, 'exam', qaItems[i].maxScore || 40, qaItemWeight)
+          qaIds.push(id)
+        }
+
+        // Fallback: if no individual items parsed, create 3 summary assessments
+        let fallbackWwId = null, fallbackPtId = null, fallbackQaId = null
+        if (!wwIds.length && !ptIds.length && !qaIds.length) {
+          fallbackWwId = await postAssessment('Written Works',        'activity', 100, Math.round(weights.ww * 100))
+          fallbackPtId = await postAssessment('Performance Tasks',    'project',  100, Math.round(weights.pt * 100))
+          fallbackQaId = await postAssessment('Quarterly Assessment', 'exam',     100, Math.round(weights.qa * 100))
+        }
 
         // Build grade rows
         const gradeRows = []
@@ -452,9 +540,39 @@ export default function DepEdImporter({ onBack }) {
           const sid = studentMap.get(normName(st.name))
           if (!sid) { unmatched++; continue }
           matched++
-          if (wwId && st.wwPS !== null) gradeRows.push({ student_id: Number(sid), assessment_id: Number(wwId), score: r2(st.wwPS) })
-          if (ptId && st.ptPS !== null) gradeRows.push({ student_id: Number(sid), assessment_id: Number(ptId), score: r2(st.ptPS) })
-          if (qaId && st.qaPS !== null) gradeRows.push({ student_id: Number(sid), assessment_id: Number(qaId), score: r2(st.qaPS) })
+
+          if (wwIds.length > 0) {
+            for (let i = 0; i < wwIds.length; i++) {
+              const score = st.wwScores?.[i]?.score
+              if (wwIds[i] && score !== null && score !== undefined) {
+                gradeRows.push({ student_id: Number(sid), assessment_id: Number(wwIds[i]), score: r2(score) })
+              }
+            }
+          } else if (fallbackWwId && st.wwPS !== null) {
+            gradeRows.push({ student_id: Number(sid), assessment_id: Number(fallbackWwId), score: r2(st.wwPS) })
+          }
+
+          if (ptIds.length > 0) {
+            for (let i = 0; i < ptIds.length; i++) {
+              const score = st.ptScores?.[i]?.score
+              if (ptIds[i] && score !== null && score !== undefined) {
+                gradeRows.push({ student_id: Number(sid), assessment_id: Number(ptIds[i]), score: r2(score) })
+              }
+            }
+          } else if (fallbackPtId && st.ptPS !== null) {
+            gradeRows.push({ student_id: Number(sid), assessment_id: Number(fallbackPtId), score: r2(st.ptPS) })
+          }
+
+          if (qaIds.length > 0) {
+            for (let i = 0; i < qaIds.length; i++) {
+              const score = st.qaScores?.[i]?.score
+              if (qaIds[i] && score !== null && score !== undefined) {
+                gradeRows.push({ student_id: Number(sid), assessment_id: Number(qaIds[i]), score: r2(score) })
+              }
+            }
+          } else if (fallbackQaId && st.qaPS !== null) {
+            gradeRows.push({ student_id: Number(sid), assessment_id: Number(fallbackQaId), score: r2(st.qaPS) })
+          }
         }
 
         if (gradeRows.length > 0) {
@@ -467,8 +585,9 @@ export default function DepEdImporter({ onBack }) {
           if (!gResp.ok) log.push(`⚠ Grade save failed for ${subject}`)
         }
 
+        const totalAssessments = wwIds.length + ptIds.length + qaIds.length || 3
         const note = unmatched > 0 ? ` (${unmatched} unmatched)` : ''
-        log.push(`✓ ${subject} (${quarter}) — Course created · ${matched} students · ${gradeRows.length} grades${note}`)
+        log.push(`✓ ${subject} (${quarter}) — Course created · ${matched} students · ${gradeRows.length} grades · ${totalAssessments} assessments${note}`)
       }
 
       setImportLog(log)
