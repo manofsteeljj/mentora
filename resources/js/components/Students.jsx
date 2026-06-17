@@ -219,21 +219,124 @@ export default function Students() {
   const handleExportStudents = async () => {
     try {
       const XLSX = await loadXlsx()
-      const rows = filteredStudents.map((s) => ({
-        student_number: s.studentId || '',
-        name: s.name || '',
-        email: s.email || '',
-        course: s.courseLabel || '',
-        section: s.section || '',
-      }))
 
-      const worksheet = XLSX.utils.json_to_sheet(rows)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students')
-      const fileTag = selectedCourse ? `course-${selectedCourse}` : 'students'
-      XLSX.writeFile(workbook, `students_${fileTag}.xlsx`)
+      // ── Metadata ──────────────────────────────────────────────────────────
+      const courseObj  = courseOptions.find(c => c.id === selectedCourse)
+      const sampleSt   = filteredStudents[0]
+      const section    = sampleSt?.section    || ''
+      const courseLabel = sampleSt?.courseLabel || courseObj?.label || ''
+
+      let teacherName = ''
+      try {
+        const r = await fetch('/api/user', {
+          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+          credentials: 'same-origin',
+        })
+        if (r.ok) { const d = await r.json(); teacherName = d?.name || '' }
+      } catch {}
+
+      const hasFemales = filteredStudents.some(s => (s.gender || '').toUpperCase() === 'F')
+      const maleList   = hasFemales
+        ? filteredStudents.filter(s => (s.gender || '').toUpperCase() !== 'F')
+        : filteredStudents
+      const femaleList = hasFemales
+        ? filteredStudents.filter(s => (s.gender || '').toUpperCase() === 'F')
+        : []
+
+      // ── Build aoa — exact column positions from mockup ────────────────────
+      const e = (len = 1) => Array(len).fill('')
+
+      // R0: Title
+      const r0 = e(36); r0[0] = 'Input Data Sheet for E-Class Record'
+      // R1-R2: empty (title merges over R0-R1 in mockup)
+      // R3: REGION / DIVISION / DISTRICT
+      const r3 = e(29)
+      r3[2]='REGION';   r3[6]=1
+      r3[11]='DIVISION';r3[14]='LA UNION'
+      r3[19]='DISTRICT';r3[23]=''
+      // R4: SCHOOL NAME / SCHOOL ID / SCHOOL YEAR
+      const r4 = e(35)
+      r4[1]='SCHOOL NAME'; r4[6]=''
+      r4[19]='SCHOOL ID';  r4[23]=''
+      r4[29]='SCHOOL YEAR';r4[32]=''
+      // R5: empty
+      // R6: QUARTER / GRADE & SECTION / TEACHER / SUBJECT
+      const r6 = e(36)
+      r6[0]='FIRST QUARTER'
+      r6[5]='GRADE & SECTION: '; r6[10]=section
+      r6[16]='TEACHER:';          r6[18]=teacherName
+      r6[28]='SUBJECT:';          r6[32]=courseLabel
+      // R7: LEARNERS' NAMES
+      const r7 = e(29); r7[1]="LEARNERS' NAMES"
+      // R8-R9: empty
+      // R10: MALE header
+      const r10 = e(5); r10[1]='MALE '
+
+      const aoa = [r0, e(), e(), r3, r4, e(), r6, r7, e(), e(), r10]
+
+      // Male student rows — [num, name, '', 0, 0]
+      maleList.forEach((s, i) => aoa.push([i + 1, s.name || '', '', 0, 0]))
+
+      // 3 blank rows + totals placeholder
+      aoa.push(e(), e(), e(), ['', '', 0, 0, 0])
+
+      // FEMALE header
+      const femaleHeaderRow = aoa.length
+      aoa.push(['', 'FEMALE '])
+
+      // Female student rows — [num, name, 0, 0, 0]
+      femaleList.forEach((s, i) => aoa.push([i + 1, s.name || '', 0, 0, 0]))
+
+      // Trailing totals row
+      aoa.push(['', '', 0, 0, 0])
+
+      // ── Worksheet + merges ────────────────────────────────────────────────
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+      ws['!merges'] = [
+        // R0-R1 title
+        { s:{r:0,c:0},  e:{r:1,c:35} },
+        // R2 empty
+        { s:{r:2,c:0},  e:{r:2,c:35} },
+        // R3 REGION label, value, DIVISION label, value, DISTRICT label, value
+        { s:{r:3,c:2},  e:{r:3,c:5}  },
+        { s:{r:3,c:6},  e:{r:3,c:9}  },
+        { s:{r:3,c:11}, e:{r:3,c:13} },
+        { s:{r:3,c:14}, e:{r:3,c:17} },
+        { s:{r:3,c:19}, e:{r:3,c:22} },
+        { s:{r:3,c:23}, e:{r:3,c:28} },
+        // R4 SCHOOL NAME label, value, SCHOOL ID label, value, SCHOOL YEAR label, value
+        { s:{r:4,c:1},  e:{r:4,c:5}  },
+        { s:{r:4,c:6},  e:{r:4,c:17} },
+        { s:{r:4,c:19}, e:{r:4,c:22} },
+        { s:{r:4,c:23}, e:{r:4,c:28} },
+        { s:{r:4,c:29}, e:{r:4,c:31} },
+        { s:{r:4,c:32}, e:{r:4,c:34} },
+        // R6 quarter, GRADE&SECTION label, section value, TEACHER label, teacher value, SUBJECT label, subject value
+        { s:{r:6,c:0},  e:{r:6,c:4}  },
+        { s:{r:6,c:5},  e:{r:6,c:9}  },
+        { s:{r:6,c:10}, e:{r:6,c:15} },
+        { s:{r:6,c:16}, e:{r:6,c:17} },
+        { s:{r:6,c:18}, e:{r:6,c:27} },
+        { s:{r:6,c:28}, e:{r:6,c:31} },
+        { s:{r:6,c:32}, e:{r:6,c:35} },
+        // R7 LEARNERS' NAMES
+        { s:{r:7,c:1},  e:{r:7,c:4}  },
+        // R10 MALE header
+        { s:{r:10,c:1}, e:{r:10,c:4} },
+        // FEMALE header
+        { s:{r:femaleHeaderRow,c:1}, e:{r:femaleHeaderRow,c:4} },
+      ]
+
+      const wb2 = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb2, ws, 'INPUT DATA')
+
+      const safeName = (section || courseLabel || 'students')
+        .replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 30)
+      XLSX.writeFile(wb2, `students_${safeName}.xlsx`)
       toast.success('Students exported successfully')
-    } catch {
+    } catch (err) {
+      console.error(err)
       toast.error('Export failed')
     }
   }
