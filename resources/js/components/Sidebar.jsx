@@ -1,4 +1,5 @@
 import {
+  GraduationCap,
   MessageSquare,
   FileText,
   BookOpen,
