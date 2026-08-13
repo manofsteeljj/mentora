@@ -16,6 +16,8 @@ class Course extends Model
         'room',
         'status',
         'academic_term',
+        'school_year',
+        'trimester',
         'last_synced_at',
     ];
 

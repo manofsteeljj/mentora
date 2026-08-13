@@ -23,7 +23,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
         ]);
 
         $this->assertCourseOwnedByUser($request, (int) $data['course_id']);
@@ -43,7 +43,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'in:quiz,activity,exam,project,assignment'],
@@ -72,7 +72,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
         ]);
 
         $this->assertCourseOwnedByUser($request, (int) $data['course_id']);
@@ -95,7 +95,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id'                   => ['required', 'integer', 'exists:courses,id'],
-            'grading_period'              => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period'              => ['required', 'string', 'in:1st,2nd,3rd'],
             'grades'                      => ['required', 'array'],
             'grades.*.student_id'         => ['required', 'integer', 'exists:students,id'],
             'grades.*.assessment_id'      => ['required', 'integer', 'exists:gradebook_assessments,id'],

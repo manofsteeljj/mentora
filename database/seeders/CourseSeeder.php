@@ -44,7 +44,9 @@ class CourseSeeder extends Seeder
                     'section' => chr(ord('A') + $index),
                     'room' => 'Room ' . (100 + $index),
                     'status' => 'ACTIVE',
-                    'academic_term' => 'AY 2025-2026 / 2nd Semester',
+                    'school_year' => '2025-2026',
+                    'trimester' => ['1st-trimester', '2nd-trimester', '3rd-trimester'][($index + 1) % 3],
+                    'academic_term' => '2025-2026 / ' . ucfirst(str_replace('-trimester', ' Trimester', ['1st-trimester', '2nd-trimester', '3rd-trimester'][($index + 1) % 3])),
                     'last_synced_at' => now(),
                 ]
             );

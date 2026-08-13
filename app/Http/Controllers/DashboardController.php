@@ -146,6 +146,8 @@ class DashboardController extends Controller
                 'room' => $c->room ?? '',
                 'status' => $c->status ?? 'ACTIVE',
                 'academicTerm' => $c->academic_term ?? '',
+                'schoolYear'   => $c->school_year ?? '',
+                'trimester'    => $c->trimester ?? '',
                 'googleClassroomId' => $c->google_classroom_id,
                 'studentCount' => $c->students_count,
                 'assessmentCount' => $c->assessments_count,

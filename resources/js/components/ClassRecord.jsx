@@ -51,8 +51,8 @@ function getWeights(subject) {
 }
 
 function quarterLabel(q) {
-  const map = { '1st': 'FIRST QUARTER', '2nd': 'SECOND QUARTER', '3rd': 'THIRD QUARTER', '4th': 'FOURTH QUARTER' }
-  return map[q] || (q + ' QUARTER')
+  const map = { '1st': 'FIRST TRIMESTER', '2nd': 'SECOND TRIMESTER', '3rd': 'THIRD TRIMESTER' }
+  return map[q] || (q + ' TRIMESTER')
 }
 
 // ─── Build one DepEd sheet ────────────────────────────────────────────────────
@@ -299,7 +299,7 @@ export default function ClassRecord() {
     const coursesToFetch = selectedCourse
       ? [selectedCourse]
       : courses.map(c => c.id)
-    const periods = ['1st', '2nd', '3rd', '4th']
+    const periods = ['1st', '2nd', '3rd']
 
     Promise.all(
       coursesToFetch.flatMap(courseId =>
@@ -351,12 +351,12 @@ export default function ClassRecord() {
     }
   }, [courseOptions, selectedCourse])
 
-  const splitIntoFour = (items) => {
+  const splitIntoThree = (items) => {
     const n = items.length
-    if (n === 0) return [[], [], [], []]
-    const base = Math.floor(n / 4)
-    const rem = n % 4
-    const sizes = [0, 1, 2, 3].map(i => base + (i < rem ? 1 : 0))
+    if (n === 0) return [[], [], []]
+    const base = Math.floor(n / 3)
+    const rem = n % 3
+    const sizes = [0, 1, 2].map(i => base + (i < rem ? 1 : 0))
     const result = []
     let cursor = 0
     for (const size of sizes) {
@@ -390,13 +390,12 @@ export default function ClassRecord() {
           return da - db
         })
 
-      const [p1, p2, p3, p4] = splitIntoFour(scoredSorted)
+      const [p1, p2, p3] = splitIntoThree(scoredSorted)
 
       const computed = {
         first: averagePercent(p1),
         second: averagePercent(p2),
         third: averagePercent(p3),
-        fourth: averagePercent(p4),
         final: s.average !== null && s.average !== undefined ? Number(s.average) : averagePercent(scoredSorted),
       }
 

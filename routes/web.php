@@ -93,27 +93,52 @@ Route::middleware('auth')->group(function () {
             \App\Models\Course::where('user_id', $request->user()->id)
                 ->withCount('students')
                 ->orderBy('course_code')
-                ->get(['id', 'course_code', 'course_name', 'description', 'section', 'room', 'status', 'academic_term', 'google_classroom_id'])
+                ->get(['id', 'course_code', 'course_name', 'description', 'section', 'room', 'status', 'academic_term', 'school_year', 'trimester', 'google_classroom_id'])
         );
     })->name('api.courses.index');
 
     Route::post('/api/courses', function (\Illuminate\Http\Request $request) {
         $data = $request->validate([
-            'course_code'  => ['required', 'string', 'max:50'],
-            'course_name'  => ['required', 'string', 'max:255'],
-            'description'  => ['nullable', 'string'],
-            'academic_term'=> ['nullable', 'string', 'max:255'],
-            'section'      => ['nullable', 'string', 'max:100'],
+            'course_code'   => ['required', 'string', 'max:50'],
+            'course_name'   => ['required', 'string', 'max:255'],
+            'description'   => ['nullable', 'string'],
+            'academic_term' => ['nullable', 'string', 'max:255'],
+            'academic_year' => ['nullable', 'string', 'max:20'],
+            'school_year'   => ['nullable', 'string', 'max:20'],
+            'semester'      => ['nullable', 'string', 'in:1st-semester,2nd-semester,3rd-semester,summer,1st-trimester,2nd-trimester,3rd-trimester'],
+            'trimester'     => ['nullable', 'string', 'in:1st-trimester,2nd-trimester,3rd-trimester'],
+            'section'       => ['nullable', 'string', 'max:100'],
         ]);
 
+        $semesterMap = [
+            '1st-semester' => '1st-trimester',
+            '2nd-semester' => '2nd-trimester',
+            '3rd-semester' => '3rd-trimester',
+            'summer'       => '3rd-trimester',
+            '1st-trimester' => '1st-trimester',
+            '2nd-trimester' => '2nd-trimester',
+            '3rd-trimester' => '3rd-trimester',
+        ];
+
+        $schoolYear = $data['school_year'] ?? $data['academic_year'] ?? null;
+        $trimester = $data['trimester'] ?? ($data['semester'] ? ($semesterMap[$data['semester']] ?? null) : null);
+
+        $academicTerm = $data['academic_term'] ?? (
+            $schoolYear && $trimester
+                ? sprintf('%s / %s', $schoolYear, ucfirst(str_replace('-trimester', ' Trimester', $trimester)))
+                : null
+        );
+
         $course = \App\Models\Course::create([
-            'user_id'      => $request->user()->id,
-            'course_code'  => $data['course_code'],
-            'course_name'  => $data['course_name'],
-            'description'  => $data['description'] ?? null,
-            'academic_term'=> $data['academic_term'] ?? null,
-            'section'      => $data['section'] ?? null,
-            'status'       => 'ACTIVE',
+            'user_id'       => $request->user()->id,
+            'course_code'   => $data['course_code'],
+            'course_name'   => $data['course_name'],
+            'description'   => $data['description'] ?? null,
+            'academic_term' => $academicTerm,
+            'school_year'   => $schoolYear,
+            'trimester'     => $trimester,
+            'section'       => $data['section'] ?? null,
+            'status'        => 'ACTIVE',
         ]);
 
         return response()->json([
@@ -125,6 +150,8 @@ Route::middleware('auth')->group(function () {
             'room'                => $course->room,
             'status'              => $course->status,
             'academic_term'       => $course->academic_term,
+            'school_year'         => $course->school_year,
+            'trimester'           => $course->trimester,
             'google_classroom_id' => $course->google_classroom_id,
             'students_count'      => 0,
         ], 201);

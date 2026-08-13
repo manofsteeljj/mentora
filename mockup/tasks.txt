@@ -1,0 +1,354 @@
+React
+  │
+  │  POST /api/lesson-plans/generate
+  ▼
+Laravel
+  │
+  ├── Validate teacher input
+  ├── Retrieve curriculum / uploaded materials
+  ├── Build structured LLM prompt
+  ├── Call LLM
+  │
+  ▼
+LLM returns STRUCTURED JSON
+  │
+  ▼
+Laravel validates JSON
+  │
+  ├── Save lesson plan
+  └── Return JSON to React
+          │
+          ▼
+       React
+          │
+          ▼
+   Excel-like editor
+          │
+          ├── Edit
+          ├── Save
+          └── Export .xlsx
+1. Don't make the LLM generate an actual .xlsx
+
+This is important.
+
+Have the LLM generate structured JSON, not Excel.
+
+For example, conceptually:
+
+{
+  title: "Lesson Plan: Fractions",
+  grade_level: "Grade 6",
+  subject: "Mathematics",
+  duration: "60 minutes",
+  objectives: [...],
+  activities: [...],
+  assessment: {...}
+}
+
+Then your Laravel application converts that structured data into whatever format you need:
+
+HTML/table for viewing
+database records
+.xlsx for download
+
+This gives you much more control.
+
+2. Your React UI can look like Excel
+
+You don't actually need to embed Microsoft Excel.
+
+You can use an Excel-like React grid.
+
+For example, the screen could have:
+
+┌─────────────────────────────────────────────────────────────┐
+│ Mentora — AI Lesson Plan Creator                            │
+├─────────────────────────────────────────────────────────────┤
+│ Grade: [Grade 6 ▼]     Subject: [Mathematics ▼]             │
+│ Topic: [Fractions________________________]                  │
+│ Duration: [60 minutes]                                      │
+│                                                             │
+│ [ Generate Lesson Plan ]                                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ ┌────────────┬──────────────┬──────────────┬──────────────┐ │
+│ │ Objectives │ Activities   │ Resources    │ Assessment   │ │
+│ ├────────────┼──────────────┼──────────────┼──────────────┤ │
+│ │ ...        │ ...          │ ...          │ ...          │ │
+│ └────────────┴──────────────┴──────────────┴──────────────┘ │
+│                                                             │
+│ [Save] [Export XLSX] [Export PDF]                           │
+└─────────────────────────────────────────────────────────────┘
+
+The teacher can modify the AI's output before saving/publishing.
+
+That's actually very good for your paper because it demonstrates human validation.
+
+3. I would structure your lesson plan around the Philippine school context
+
+Don't just ask:
+
+"Generate a lesson plan."
+
+Give Mentora structured information:
+
+Grade Level
+Subject
+Topic
+Learning Competency
+Learning Objectives
+Duration
+Teaching Strategy
+Available Resources
+Assessment Type
+
+Then your LLM prompt can essentially say:
+
+Generate a lesson plan using only the provided educational context. Follow the specified learning competency and objectives. Do not invent curriculum standards that are not present in the provided context.
+
+That makes your RAG/context-aware component actually meaningful.
+
+4. Laravel structure
+
+I'd create something like:
+
+app/
+├── Http/
+│   └── Controllers/
+│       └── LessonPlanController.php
+│
+├── Services/
+│   ├── LessonPlanService.php
+│   └── AI/
+│       ├── LLMService.php
+│       ├── GeminiProvider.php
+│       ├── OpenAIProvider.php
+│       └── LocalLLMProvider.php
+│
+└── Models/
+    └── LessonPlan.php
+
+The important part is the LLM abstraction.
+
+Don't do this:
+
+LessonPlanController → Gemini API
+
+Instead:
+
+LessonPlanController
+        ↓
+LessonPlanService
+        ↓
+LLMService
+        ↓
+Gemini / GPT / Llama / etc.
+
+That will also help enormously with your new LLM comparative analysis objective.
+
+5. Database
+
+I'd create a lesson_plans table containing something like:
+
+id
+teacher_id
+subject_id
+section_id
+title
+grade_level
+topic
+duration
+learning_competency
+objectives
+content
+activities
+resources
+assessment
+ai_model
+status
+created_at
+updated_at
+
+For fields containing complex structures, Laravel's JSON column is useful.
+
+For example:
+
+objectives
+activities
+resources
+assessment
+
+can be stored as JSON.
+
+6. Very important: save the AI model used
+
+Since you're now doing an LLM comparative analysis, store:
+
+ai_model
+
+with the lesson plan.
+
+For example:
+
+gemini-2.5-flash
+
+Then you can later determine:
+
+"Which model generated this lesson plan?"
+
+You can also log:
+
+model
+prompt
+response
+response_time
+token_usage
+created_at
+
+in an ai_requests table.
+
+This will make your benchmarking much easier.
+
+7. .xlsx export
+
+For Laravel, I'd use PhpSpreadsheet or Laravel Excel rather than trying to generate Excel manually.
+
+Your flow becomes:
+
+LLM JSON
+     ↓
+LessonPlan model
+     ↓
+Laravel Excel/PhpSpreadsheet
+     ↓
+lesson-plan.xlsx
+
+And your React button simply calls:
+
+GET /api/lesson-plans/{id}/export
+
+The browser downloads the generated file.
+
+8. But you said you want an XLSX VIEWER
+
+There are actually two different things:
+
+A. Excel-like editor
+
+Teacher sees:
+
+| Objectives | Activities | Resources | Assessment |
+|------------|------------|-----------|------------|
+| ...        | ...        | ...       | ...        |
+
+and can edit cells.
+
+I recommend this.
+
+B. Actual .xlsx viewer
+
+Teacher uploads an existing Excel file and Mentora renders it.
+
+That's a different feature.
+
+If you want both, you can do:
+
+                 Mentora
+                    │
+          ┌─────────┴─────────┐
+          ↓                   ↓
+ AI Lesson Plan          Upload XLSX
+          ↓                   ↓
+ Structured JSON       XLSX Parser
+          ↓                   ↓
+          └──────→ Excel-like Editor
+                         ↓
+                       Save
+                         ↓
+                    Export XLSX
+
+That would be a very nice feature.
+
+9. React component structure
+
+I'd keep it modular:
+
+components/
+└── lesson-plan/
+    ├── LessonPlanGenerator.jsx
+    ├── LessonPlanForm.jsx
+    ├── LessonPlanEditor.jsx
+    ├── LessonPlanTable.jsx
+    ├── LessonPlanPreview.jsx
+    ├── LessonPlanToolbar.jsx
+    └── ExportButton.jsx
+
+Then:
+
+LessonPlanGenerator
+       ↓
+LessonPlanForm
+       ↓
+POST Laravel
+       ↓
+LessonPlanEditor
+       ↓
+Teacher reviews
+       ↓
+Save
+10. The most important part for your capstone
+
+Your workflow should explicitly show:
+
+AI → Teacher → Final Output
+
+not:
+
+AI → Final Grade/Lesson
+
+For lesson plans:
+
+Teacher enters requirements
+        ↓
+Mentora retrieves relevant context
+        ↓
+LLM generates lesson plan
+        ↓
+Teacher reviews and edits
+        ↓
+Teacher approves
+        ↓
+Save / Export
+
+That supports the human validation requirement you already have in your paper.
+
+What I'd build first
+
+Don't start with the XLSX viewer.
+
+I'd implement in this order:
+
+Phase 1 — Backend
+
+lesson_plans migration
+LessonPlan model
+LessonPlan API
+LLM service abstraction
+Structured JSON generation
+Save generated lesson plan
+
+Phase 2 — React
+7. Lesson-plan generation form
+8. Lesson-plan editor
+9. Teacher validation/approval
+10. Save changes
+
+Phase 3 — Excel
+11. Excel-like grid
+12. .xlsx export
+13. Optional .xlsx import/viewer
+
+Phase 4 — RAG
+14. Connect uploaded syllabus/materials
+15. Retrieve relevant content
+16. Inject retrieved context into the lesson-plan prompt

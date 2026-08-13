@@ -131,20 +131,20 @@ export default function AdminSettings() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <h3 className="font-medium">Current Semester</h3>
+                <h3 className="font-medium">Current Trimester</h3>
                 <p className="text-sm text-gray-500">
-                  Active semester for the system
+                  Active trimester for the system
                 </p>
               </div>
               <div className="relative">
-                <Select defaultValue="spring">
+                <Select defaultValue="2nd-trimester">
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fall">Fall Semester</SelectItem>
-                    <SelectItem value="spring">Spring Semester</SelectItem>
-                    <SelectItem value="summer">Summer Semester</SelectItem>
+                    <SelectItem value="1st-trimester">1st Trimester</SelectItem>
+                    <SelectItem value="2nd-trimester">2nd Trimester</SelectItem>
+                    <SelectItem value="3rd-trimester">3rd Trimester</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
