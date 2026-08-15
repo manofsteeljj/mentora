@@ -21,6 +21,7 @@ const AdminSettings = lazy(() => import('./AdminSettings'))
 const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
 const DepEdImporter = lazy(() => import('./DepEdImporter'))
+const LessonPlanCreator = lazy(() => import('./LessonPlanCreator'))
 
 function AdminPagePlaceholder({ title }) {
   return (
@@ -230,6 +231,11 @@ export default function DashboardLayout() {
             }}
           />
         )
+      case 'lesson-plans':
+        if (userRole !== 'faculty') {
+          return <AdminPagePlaceholder title="Lesson Plans" />
+        }
+        return <LessonPlanCreator />
       case 'deped-import':
         if (userRole !== 'faculty') {
           return <AdminPagePlaceholder title="DepEd Import" />

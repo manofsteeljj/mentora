@@ -15,6 +15,7 @@ use App\Http\Controllers\GradebookController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\FacultyController;
+use App\Http\Controllers\LessonPlanController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -121,7 +122,7 @@ Route::middleware('auth')->group(function () {
         ];
 
         $schoolYear = $data['school_year'] ?? $data['academic_year'] ?? null;
-        $trimester = $data['trimester'] ?? ($data['semester'] ? ($semesterMap[$data['semester']] ?? null) : null);
+        $trimester = $data['trimester'] ?? (isset($data['semester']) ? ($semesterMap[$data['semester']] ?? null) : null);
 
         $academicTerm = $data['academic_term'] ?? (
             $schoolYear && $trimester
@@ -204,6 +205,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/api/gradebook/assessments/{assessment}', [GradebookController::class, 'assessmentsDestroy'])->name('api.gradebook.assessments.destroy');
     Route::get('/api/gradebook/grades', [GradebookController::class, 'gradesIndex'])->name('api.gradebook.grades.index');
     Route::put('/api/gradebook/grades', [GradebookController::class, 'gradesUpsert'])->name('api.gradebook.grades.upsert');
+
+    // Lesson Plan API
+    Route::get('/api/lesson-plans',                          [LessonPlanController::class, 'index'])      ->name('api.lesson-plans.index');
+    Route::post('/api/lesson-plans/generate',                [LessonPlanController::class, 'generate'])   ->name('api.lesson-plans.generate');
+    Route::get('/api/lesson-plans/{id}',                     [LessonPlanController::class, 'show'])       ->name('api.lesson-plans.show');
+    Route::put('/api/lesson-plans/{id}',                     [LessonPlanController::class, 'update'])     ->name('api.lesson-plans.update');
+    Route::delete('/api/lesson-plans/{id}',                  [LessonPlanController::class, 'destroy'])    ->name('api.lesson-plans.destroy');
+    Route::get('/api/lesson-plans/{id}/export-docx',         [LessonPlanController::class, 'exportDocx'])->name('api.lesson-plans.export-docx');
 
     // Attendance API
     Route::get('/api/attendance/records', [AttendanceController::class, 'index'])->name('api.attendance.records');

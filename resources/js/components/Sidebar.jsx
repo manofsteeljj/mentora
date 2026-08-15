@@ -15,6 +15,7 @@ import {
   Upload,
   Download,
   TableProperties,
+  NotebookPen,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -190,6 +191,15 @@ export default function Sidebar({
               >
                 <CalendarCheck className="w-4 h-4 mr-2" />
                 Attendance
+              </Button>
+
+              <Button
+                variant={activeView === 'lesson-plans' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('lesson-plans')}
+              >
+                <NotebookPen className="w-4 h-4 mr-2" />
+                Lesson Plans
               </Button>
             </>
           )}
