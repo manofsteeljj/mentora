@@ -19,9 +19,20 @@ class LLMService
 
     public function __construct()
     {
-        $this->provider = mb_strtolower((string) env('AI_PROVIDER', 'openrouter'));
-        $this->timeout  = intval(env('AI_TIMEOUT', env('LOCAL_AI_TIMEOUT', 120)));
-        $this->retries  = intval(env('AI_RETRIES', env('LOCAL_AI_RETRIES', 2)));
+        $this->provider = mb_strtolower((string) $this->readSetting('AI_PROVIDER', 'openrouter'));
+        $this->timeout  = intval($this->readSetting('AI_TIMEOUT', $this->readSetting('LOCAL_AI_TIMEOUT', 120)));
+        $this->retries  = intval($this->readSetting('AI_RETRIES', $this->readSetting('LOCAL_AI_RETRIES', 2)));
+    }
+
+    private function readSetting(string $key, mixed $fallback = null): mixed
+    {
+        $value = config($key);
+
+        if ($value !== null) {
+            return $value;
+        }
+
+        return env($key, $fallback);
     }
 
     /**
@@ -94,20 +105,44 @@ class LLMService
 
     private function buildRequest(string $systemPrompt, string $userMessage): array
     {
+        if ($this->provider === 'local' || $this->provider === 'ollama') {
+            $baseUrl = rtrim((string) $this->readSetting('LOCAL_AI_URL', 'http://localhost:11434'), '/');
+            $path    = ltrim((string) $this->readSetting('LOCAL_AI_PATH', 'api/generate'), '/');
+            $model   = (string) $this->readSetting('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
+            $url     = $baseUrl . '/' . $path;
+
+            $payload = [
+                'model'   => $model,
+                'prompt'  => $systemPrompt . "\n\nUser: " . $userMessage . "\nAssistant:",
+                'stream'  => false,
+                'options' => [
+                    'temperature' => 0.7,
+                    'num_predict' => 3000,
+                ],
+            ];
+
+            return [$url, [], $payload, $model];
+        }
+
         if ($this->provider === 'openrouter') {
-            $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+            $baseUrl = rtrim((string) config('services.openrouter.base_url', $this->readSetting('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')), '/');
             $url     = $baseUrl . '/chat/completions';
-            $apiKey  = (string) config('services.openrouter.api_key', '');
-            $model   = (string) config('services.openrouter.model', 'google/gemma-3-12b-it:free');
+            $apiKey  = (string) config('services.openrouter.api_key', $this->readSetting('OPENROUTER_API_KEY', ''));
+            $model   = (string) config('services.openrouter.model', $this->readSetting('OPENROUTER_MODEL', 'google/gemma-3-12b-it:free'));
 
             if ($apiKey === '') {
-                throw new \RuntimeException('OPENROUTER_API_KEY is not configured.');
+                if ($this->readSetting('LOCAL_AI_URL', false) !== false) {
+                    $this->provider = 'local';
+                    return $this->buildRequest($systemPrompt, $userMessage);
+                }
+
+                throw new \RuntimeException('AI provider is not configured. Set OPENROUTER_API_KEY or AI_PROVIDER=local.');
             }
 
             $headers = [
                 'Authorization' => 'Bearer ' . $apiKey,
-                'HTTP-Referer'  => (string) config('services.openrouter.site_url', config('app.url')),
-                'X-Title'       => (string) config('services.openrouter.app_name', config('app.name', 'Mentora')),
+                'HTTP-Referer'  => (string) config('services.openrouter.site_url', $this->readSetting('OPENROUTER_SITE_URL', config('app.url'))),
+                'X-Title'       => (string) config('services.openrouter.app_name', $this->readSetting('OPENROUTER_APP_NAME', config('app.name', 'Mentora'))),
             ];
 
             $payload = [
@@ -123,23 +158,7 @@ class LLMService
             return [$url, $headers, $payload, $model];
         }
 
-        // Local Ollama-compatible
-        $baseUrl = rtrim((string) env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
-        $path    = ltrim((string) env('LOCAL_AI_PATH', 'api/generate'), '/');
-        $model   = (string) env('LOCAL_AI_MODEL', 'llama3:8b-instruct-q4_0');
-        $url     = $baseUrl . '/' . $path;
-
-        $payload = [
-            'model'   => $model,
-            'prompt'  => $systemPrompt . "\n\nUser: " . $userMessage . "\nAssistant:",
-            'stream'  => false,
-            'options' => [
-                'temperature' => 0.7,
-                'num_predict' => 3000,
-            ],
-        ];
-
-        return [$url, [], $payload, $model];
+        throw new \RuntimeException("Unsupported AI provider: {$this->provider}");
     }
 
     private function extractText($resp): string

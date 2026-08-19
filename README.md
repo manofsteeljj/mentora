@@ -49,6 +49,12 @@ The AI assistant is grounded in the instructor's own uploaded course materials u
 - Assessment export to `.docx`
 - Full submission tracking per student
 
+### 📄 ONLYOFFICE Document Editing
+- Embedded ONLYOFFICE editor inside Mentora (DOCX + XLSX)
+- Lesson plans open as editable DOCX with server-side save callback
+- Class records open as editable XLSX while keeping export workflows intact
+- Backend-signed editor configuration with optional JWT support
+
 ### 📊 Gradebook & Analytics
 - Weighted gradebook with grading period support
 - Class record view with per-student scores
@@ -113,6 +119,18 @@ AI_PROVIDER=local
 LOCAL_AI_URL=http://localhost:11434
 LOCAL_AI_MODEL=llama3:8b-instruct-q4_0
 ```
+
+### ONLYOFFICE (embedded editor)
+
+```env
+ONLYOFFICE_URL=http://localhost:8080
+ONLYOFFICE_JWT_SECRET=your_shared_secret
+VITE_ONLYOFFICE_URL=http://localhost:8080
+```
+
+Notes:
+- `ONLYOFFICE_JWT_SECRET` is backend-only and must never be exposed to React.
+- Keep frontend and backend URLs aligned to the same running ONLYOFFICE Docs instance.
 
 ---
 
@@ -203,6 +221,9 @@ Visit `http://localhost:8000`.
 | `OPENROUTER_MODEL` | Model to use on OpenRouter | `google/gemma-3-12b-it:free` |
 | `LOCAL_AI_URL` | Ollama base URL | `http://localhost:11434` |
 | `LOCAL_AI_MODEL` | Ollama model name | `llama3:8b-instruct-q4_0` |
+| `ONLYOFFICE_URL` | ONLYOFFICE Docs server URL used by Laravel | `http://localhost:8080` |
+| `ONLYOFFICE_JWT_SECRET` | Shared JWT secret for ONLYOFFICE callback/editor token signing | — |
+| `VITE_ONLYOFFICE_URL` | ONLYOFFICE Docs server URL used by React editor component | `http://localhost:8080` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | — |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | — |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL | — |
@@ -313,6 +334,77 @@ Sign in with Google to unlock full Classroom sync. The OAuth flow requests all r
 | `GET` | `/api/dashboard/stats` | Dashboard statistics |
 | `POST` | `/api/google/classroom/sync` | Trigger Classroom sync |
 | `GET` | `/api/attendance/{courseId}` | Get attendance records |
+
+### ONLYOFFICE Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/documents/{type}/{id}/editor` | Returns ONLYOFFICE editor configuration (server-signed) |
+| `GET` | `/api/documents/{type}/{id}/content` | Streams raw DOCX/XLSX bytes to ONLYOFFICE |
+| `POST` | `/api/documents/onlyoffice/callback` | Receives save callbacks and persists updated document |
+| `POST` | `/api/documents/{type}/upload` | Uploads a new DOCX/XLSX document record |
+
+Types:
+- `lesson-plan` maps to DOCX (`word`)
+- `class-record` maps to XLSX (`cell`)
+
+---
+
+## 🧩 How ONLYOFFICE Integrates with Mentora
+
+Flow:
+
+React page
+↓
+Laravel editor-config endpoint
+↓
+ONLYOFFICE Docs (embedded in React)
+↓
+Document content endpoint
+↓
+Teacher edits and saves
+↓
+ONLYOFFICE callback
+↓
+Laravel stores updated DOCX/XLSX and bumps version key
+
+Security model:
+- Laravel authentication is required before accessing editor/content routes.
+- Ownership checks prevent users from opening other users' private documents.
+- JWT token signing and callback verification are supported via `ONLYOFFICE_JWT_SECRET`.
+- React never receives JWT secrets.
+
+Storage behavior:
+- Lesson plans: `storage/app/private/documents/lesson-plans/{id}.docx`
+- Class records: `storage/app/private/documents/class-records/{id}.xlsx`
+
+---
+
+## 🧪 ONLYOFFICE Verification Checklist
+
+1. Health check:
+   - `http://localhost:8080/healthcheck` should return `true`.
+2. DOCX:
+   - Open a lesson plan, edit, save, reopen, verify persistence.
+3. XLSX:
+   - Open a class record, edit, save, reopen, verify persistence and formatting.
+4. Authorization:
+   - Confirm User B cannot open User A document.
+
+---
+
+## 🛟 ONLYOFFICE Troubleshooting
+
+- Editor does not load:
+  - Confirm `VITE_ONLYOFFICE_URL` points to the running Docs server.
+  - Confirm `ONLYOFFICE_URL` is reachable from Laravel runtime.
+- Save does not persist:
+  - Verify callback route is reachable at `/api/documents/onlyoffice/callback`.
+  - Verify JWT secrets match between ONLYOFFICE and Laravel if enabled.
+- 403 on document open:
+  - Confirm the authenticated user owns the document.
+- 404 document content:
+  - Confirm the stored path exists in the local/private storage disk.
 
 ---
 

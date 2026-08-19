@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
         ]);
 
+        // Exclude ONLYOFFICE callback from CSRF (server-to-server, no browser session)
+        $middleware->validateCsrfTokens(except: [
+            'api/documents/onlyoffice/callback',
+        ]);
+
         // Apply to all 'auth' protected routes
         $middleware->appendToGroup('web', \App\Http\Middleware\EnsureAccountIsActive::class);
     })

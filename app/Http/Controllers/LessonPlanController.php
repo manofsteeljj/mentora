@@ -207,25 +207,21 @@ class LessonPlanController extends Controller
 
     /**
      * Build a minimal but valid Office Open XML .docx file.
-     * Returns the temp file path.
+     * Uses a pure-PHP ZIP writer — no ZipArchive extension required.
      */
     private function createDocxFile(array $lines, string $docTitle): string
     {
         $bodyXml = '';
         foreach ($lines as $line) {
-            $text    = htmlspecialchars((string) $line, ENT_XML1, 'UTF-8');
-            $isBold  = preg_match('/^[IVX]+\.\s/', $line) || preg_match('/^[A-Z][A-Z\s]+$/', trim($line));
-            $boldOpen  = $isBold ? '<w:b/>' : '';
+            $text   = htmlspecialchars((string) $line, ENT_XML1, 'UTF-8');
+            $isBold = preg_match('/^[IVX]+\.\s/', $line) || preg_match('/^[A-Z][A-Z\s]+$/', trim($line));
+            $rPr    = $isBold ? '<w:rPr><w:b/><w:sz w:val="22"/></w:rPr>' : '<w:rPr><w:sz w:val="22"/></w:rPr>';
             $bodyXml .= "<w:p><w:pPr><w:spacing w:after=\"80\"/></w:pPr>"
-                      . "<w:r><w:rPr>{$boldOpen}<w:sz w:val=\"22\"/></w:rPr>"
-                      . "<w:t xml:space=\"preserve\">{$text}</w:t></w:r></w:p>\n";
+                      . "<w:r>{$rPr}<w:t xml:space=\"preserve\">{$text}</w:t></w:r></w:p>\n";
         }
 
-        $docTitleEsc = htmlspecialchars($docTitle, ENT_XML1, 'UTF-8');
-
         $documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"'
-            . ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
             . '<w:body>' . $bodyXml . '</w:body></w:document>';
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -238,7 +234,8 @@ class LessonPlanController extends Controller
 
         $relsRoot = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"'
+            . '<Relationship Id="rId1"'
+            . ' Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"'
             . ' Target="word/document.xml"/>'
             . '</Relationships>';
 
@@ -246,15 +243,113 @@ class LessonPlanController extends Controller
             . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             . '</Relationships>';
 
+        // Build ZIP in memory using pure PHP
+        $files = [
+            '[Content_Types].xml'         => $contentTypes,
+            '_rels/.rels'                 => $relsRoot,
+            'word/document.xml'           => $documentXml,
+            'word/_rels/document.xml.rels'=> $relsWord,
+        ];
+
+        $zipData = $this->buildZip($files);
+
         $tempFile = tempnam(sys_get_temp_dir(), 'dll_') . '.docx';
-        $zip = new \ZipArchive();
-        $zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-        $zip->addFromString('[Content_Types].xml',      $contentTypes);
-        $zip->addFromString('_rels/.rels',               $relsRoot);
-        $zip->addFromString('word/document.xml',         $documentXml);
-        $zip->addFromString('word/_rels/document.xml.rels', $relsWord);
-        $zip->close();
+        file_put_contents($tempFile, $zipData);
 
         return $tempFile;
+    }
+
+    /**
+     * Pure-PHP ZIP builder (no extensions).
+     * Produces a valid ZIP 2.0 archive with stored (no compression) entries.
+     *
+     * @param  array<string,string> $files  path => content
+     */
+    private function buildZip(array $files): string
+    {
+        $centralDir = '';
+        $localFiles = '';
+        $offset     = 0;
+
+        foreach ($files as $name => $content) {
+            $nameBytes = $name;
+            $nameLen   = strlen($nameBytes);
+            $dataLen   = strlen($content);
+            $crc       = crc32($content);
+
+            // Local file header  (30 bytes + name)
+            // Signature(V) version(v) flags(v) method(v) modtime(v) moddate(v) crc(V) csize(V) usize(V) namelen(v) extralen(v)
+            $dosTime = $this->dosDateTime();   // [time, date] as two 16-bit words
+            $localHeader = pack('VvvvvvVVVvv',
+                0x04034b50,      // local file header signature
+                20,              // version needed to extract
+                0,               // general purpose bit flag
+                0,               // compression method: stored
+                $dosTime[0],     // last mod file time
+                $dosTime[1],     // last mod file date
+                $crc,
+                $dataLen,        // compressed size
+                $dataLen,        // uncompressed size
+                $nameLen,
+                0                // extra field length
+            ) . $nameBytes;
+
+            $localFiles .= $localHeader . $content;
+
+            // Central directory file header (46 bytes + name)
+            // sig(V) vermade(v) verneeded(v) flags(v) method(v) modtime(v) moddate(v) crc(V) csize(V) usize(V) namelen(v) extralen(v) commentlen(v) diskstart(v) intattr(v) extattr(V) offset(V)
+            $centralDir .= pack('VvvvvvvVVVvvvvvVV',
+                0x02014b50,      // central file header signature
+                20,              // version made by
+                20,              // version needed
+                0,               // general purpose bit flag
+                0,               // compression: stored
+                $dosTime[0],     // last mod file time
+                $dosTime[1],     // last mod file date
+                $crc,
+                $dataLen,        // compressed size
+                $dataLen,        // uncompressed size
+                $nameLen,
+                0,               // extra field length
+                0,               // file comment length
+                0,               // disk number start
+                0,               // internal file attributes
+                0,               // external file attributes
+                $offset          // relative offset of local header
+            ) . $nameBytes;
+
+            $offset += strlen($localHeader) + $dataLen;
+        }
+
+        $cdSize    = strlen($centralDir);
+        $numFiles  = count($files);
+
+        // End of central directory record (22 bytes)
+        // sig(V) disknum(v) diskwithcd(v) entriesondisk(v) totalentries(v) cdsize(V) cdoffset(V) commentlen(v)
+        $eocd = pack('VvvvvVVv',
+            0x06054b50,  // end of central dir signature
+            0,           // number of this disk
+            0,           // disk with start of central dir
+            $numFiles,   // entries on this disk
+            $numFiles,   // total entries in central dir
+            $cdSize,     // size of central dir
+            $offset,     // offset of central dir
+            0            // comment length
+        );
+
+        return $localFiles . $centralDir . $eocd;
+    }
+
+    /** Returns DOS-format [time, date] as two unsigned 16-bit integers. */
+    private function dosDateTime(): array
+    {
+        $t    = getdate();
+        $time = (($t['hours']   & 0x1f) << 11)
+              | (($t['minutes'] & 0x3f) << 5)
+              | (($t['seconds'] >> 1)   & 0x1f);
+        $date = ((($t['year'] - 1980) & 0x7f) << 9)
+              | (($t['mon']  & 0x0f) << 5)
+              |  ($t['mday'] & 0x1f);
+        return [$time & 0xffff, $date & 0xffff];
     }
 }

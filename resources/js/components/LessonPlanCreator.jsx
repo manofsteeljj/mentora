@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import {
   FileText, Plus, Trash2, Download, Check, ArrowLeft,
   Sparkles, BookOpen, Clock, Target, Loader2, ChevronDown,
-  ChevronUp, Save, Eye, EyeOff, RefreshCw,
+  ChevronUp, Save, Eye, RefreshCw, Edit3,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -12,6 +12,7 @@ import { Textarea } from './ui/textarea'
 import { Badge } from './ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import OnlyOfficeEditor from './OnlyOfficeEditor'
 
 function csrf() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -65,7 +66,7 @@ function formatDate(iso) {
 // Main component
 // ══════════════════════════════════════════════════════════════════════════════
 export default function LessonPlanCreator() {
-  const [view, setView]         = useState('list')      // list | form | editor
+  const [view, setView]         = useState('list')      // list | form | onlyoffice
   const [plans, setPlans]       = useState([])
   const [loading, setLoading]   = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -142,7 +143,7 @@ export default function LessonPlanCreator() {
 
       toast.success('Lesson plan generated!', { id: 'gen' })
       setActivePlan(data)
-      setView('editor')
+      setView('onlyoffice')
       fetchPlans()
     } catch (err) {
       toast.error('Network error: ' + err.message, { id: 'gen' })
@@ -162,7 +163,7 @@ export default function LessonPlanCreator() {
       const data = await res.json()
       toast.dismiss('open')
       setActivePlan(data)
-      setView('editor')
+      setView('onlyoffice')
     } catch {
       toast.error('Could not load plan.', { id: 'open' })
     }
@@ -196,6 +197,19 @@ export default function LessonPlanCreator() {
   // Render
   // ════════════════════════════════════════════════════════════════════════════
 
+  if (view === 'onlyoffice' && activePlan) {
+    return (
+      <OnlyOfficeEditor
+        documentType="lesson-plan"
+        documentId={activePlan.id}
+        title={activePlan.title || 'Lesson Plan'}
+        onBack={() => { setView('list'); fetchPlans() }}
+        onSaved={() => { toast.success('Document saved.'); fetchPlans() }}
+      />
+    )
+  }
+
+  // Legacy structured editor kept as fallback (accessed via the eye icon)
   if (view === 'editor' && activePlan) {
     return (
       <LessonPlanEditor
@@ -412,10 +426,14 @@ export default function LessonPlanCreator() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => openPlan(plan.id)}>
-                      <Eye className="w-4 h-4" />
+                    <Button
+                      variant="ghost" size="sm"
+                      title="Open in ONLYOFFICE Editor"
+                      onClick={() => openPlan(plan.id)}
+                    >
+                      <Edit3 className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => exportDocx(plan.id)}>
+                    <Button variant="ghost" size="sm" title="Download .docx" onClick={() => exportDocx(plan.id)}>
                       <Download className="w-4 h-4" />
                     </Button>
                     <Button

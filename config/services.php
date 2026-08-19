@@ -52,4 +52,10 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URI', 'http://127.0.0.1:8000/auth/google/callback'),
     ],
+
+    'onlyoffice' => [
+        'url'        => env('ONLYOFFICE_URL', 'http://localhost:8080'),
+        'app_url'    => env('ONLYOFFICE_APP_URL', env('APP_URL', 'http://localhost:8000')),
+        'jwt_secret' => env('ONLYOFFICE_JWT_SECRET', ''),
+    ],
 ];

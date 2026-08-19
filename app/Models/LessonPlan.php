@@ -25,6 +25,8 @@ class LessonPlan extends Model
         'remarks',
         'reflection',
         'raw_ai_output',
+        'docx_path',
+        'docx_version',
         'ai_model',
         'status',
     ];
@@ -36,7 +38,17 @@ class LessonPlan extends Model
         'procedures'         => 'array',
         'remarks'            => 'array',
         'reflection'         => 'array',
+        'docx_version'       => 'integer',
     ];
+
+    /**
+     * Stable ONLYOFFICE document key for this version of the lesson plan.
+     * Changes whenever docx_version changes so stale sessions don't overwrite newer docs.
+     */
+    public function docxKey(): string
+    {
+        return 'dll-' . $this->id . '-v' . ($this->docx_version ?? 1);
+    }
 
     public function user(): BelongsTo
     {

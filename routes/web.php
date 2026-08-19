@@ -16,6 +16,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\LessonPlanController;
+use App\Http\Controllers\DocumentController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -214,6 +215,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/api/lesson-plans/{id}',                  [LessonPlanController::class, 'destroy'])    ->name('api.lesson-plans.destroy');
     Route::get('/api/lesson-plans/{id}/export-docx',         [LessonPlanController::class, 'exportDocx'])->name('api.lesson-plans.export-docx');
 
+    // ONLYOFFICE Document API
+    Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');
+    Route::get('/api/documents/{type}/{id}/editor',          [DocumentController::class, 'editor'])  ->name('api.documents.editor');
+
     // Attendance API
     Route::get('/api/attendance/records', [AttendanceController::class, 'index'])->name('api.attendance.records');
     Route::put('/api/attendance/records', [AttendanceController::class, 'upsert'])->name('api.attendance.upsert');
@@ -221,3 +226,11 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// ONLYOFFICE callback — called by the ONLYOFFICE server, no user session
+Route::post('/api/documents/onlyoffice/callback', [DocumentController::class, 'callback'])
+    ->name('api.documents.callback');
+
+// ONLYOFFICE content download — accessed by ONLYOFFICE server using short-lived JWT query token
+Route::get('/api/documents/{type}/{id}/content', [DocumentController::class, 'content'])
+    ->name('api.documents.content');

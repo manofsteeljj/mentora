@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Progress } from './ui/progress'
 import { formatCourseLabel } from '../lib/courseDisplay'
+import OnlyOfficeEditor from './OnlyOfficeEditor'
 
 // ─── DepEd Transmutation Table (matches the official E-Class Record "NewTransmu" table) ──
 const TRANSMUTATION_TABLE = [
@@ -442,6 +443,9 @@ export default function ClassRecord() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
+  const [showOOEditor, setShowOOEditor] = useState(false)
+  const [ooDocId, setOoDocId] = useState(null)
+  const [ooDocTitle, setOoDocTitle] = useState('')
   const [teacherName, setTeacherName] = useState('')
   const [schoolInfo, setSchoolInfo] = useState({ region: '', division: '', schoolName: '', schoolId: '' })
   const [gradebookByCourse, setGradebookByCourse] = useState({})
@@ -726,6 +730,86 @@ export default function ClassRecord() {
     }
   }
 
+  // Export XLSX then upload it to Laravel and open in ONLYOFFICE
+  const handleOpenInOnlyOffice = async () => {
+    setExporting(true)
+    try {
+      const exportCourses = selectedCourse
+        ? courses.filter(c => String(c.id) === selectedCourse)
+        : courses
+      if (!exportCourses.length) return
+
+      // Build the workbook buffer in-memory
+      const ExcelJS = (await import('exceljs')).default
+      const wb = new ExcelJS.Workbook()
+      wb.creator = teacherName || 'Class Record'
+      wb.created = new Date()
+
+      const studentsByCourse = {}
+      for (const s of classRows) {
+        const cid = String(s.courseId || '')
+        if (!studentsByCourse[cid]) studentsByCourse[cid] = []
+        studentsByCourse[cid].push(s)
+      }
+
+      for (const course of exportCourses) {
+        const cid = String(course.id)
+        const courseStudents = studentsByCourse[cid] || []
+        if (!courseStudents.length) continue
+        const gradebook = gradebookByCourse[cid] || null
+        const sheetName = (course.course_code || course.course_name || 'SUBJ')
+          .replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 28)
+        buildDepEdSheet(ExcelJS, wb, sheetName, course, courseStudents, gradebook, teacherName, schoolInfo)
+      }
+
+      const buffer = await wb.xlsx.writeBuffer()
+      const title = exportCourses[0]
+        ? (exportCourses[0].course_code || exportCourses[0].course_name || 'ClassRecord')
+        : 'ClassRecord'
+
+      // Upload to Laravel to get a document ID
+      const fd = new FormData()
+      fd.append('file', new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }), `${title}.xlsx`)
+      fd.append('title', title)
+
+      const res = await fetch('/api/documents/class-record/upload', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getToken(), Accept: 'application/json' },
+        credentials: 'same-origin',
+        body: fd,
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `Upload failed (${res.status})`)
+      }
+
+      const data = await res.json()
+      setOoDocId(data.id)
+      setOoDocTitle(data.title || title)
+      setShowOOEditor(true)
+    } catch (err) {
+      console.error('Open in ONLYOFFICE failed:', err)
+      alert('Could not open in ONLYOFFICE: ' + err.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  if (showOOEditor && ooDocId) {
+    return (
+      <OnlyOfficeEditor
+        documentType="class-record"
+        documentId={ooDocId}
+        title={ooDocTitle}
+        onBack={() => setShowOOEditor(false)}
+        onSaved={() => {}}
+      />
+    )
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
       {/* Header */}
@@ -742,6 +826,15 @@ export default function ClassRecord() {
               <Button variant="outline" className="gap-2">
                 <Save className="w-4 h-4" />
                 Save Changes
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={handleOpenInOnlyOffice}
+                disabled={exporting}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {exporting ? 'Preparing…' : 'Edit in ONLYOFFICE'}
               </Button>
               <Button className="gap-2 bg-green-700 hover:bg-green-800" onClick={handleExport} disabled={exporting}>
                 <Download className="w-4 h-4" />
