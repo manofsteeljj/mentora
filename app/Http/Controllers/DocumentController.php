@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Handles ONLYOFFICE document editing integration.
@@ -84,7 +85,7 @@ class DocumentController extends Controller
 
         /** @var LessonPlan $doc */
         $doc = $model::findOrFail($id);
-        $this->authorizeDoc($doc);
+        $this->authorizeDoc($doc, $type);
 
         // For lesson plans: auto-generate DOCX if missing
         if ($type === 'lesson-plan' && (!$doc->docx_path || !Storage::disk('local')->exists($doc->docx_path))) {
@@ -99,6 +100,8 @@ class DocumentController extends Controller
             return response()->json(['error' => 'Document file not found on server.'], 404);
         }
 
+        // Read-only mode (admin review view); defaults to edit
+        $mode     = $request->query('mode') === 'view' ? 'view' : 'edit';
         $appUrl    = $this->resolveOnlyOfficeAppUrl($request);
         $ooUrl     = rtrim(config('services.onlyoffice.url', 'http://localhost:8080'), '/');
         $jwtSecret = (string) config('services.onlyoffice.jwt_secret', '');
@@ -128,7 +131,7 @@ class DocumentController extends Controller
             'documentType' => $ooType,
             'editorConfig' => [
                 'callbackUrl' => $callbackUrl,
-                'mode'        => 'edit',
+                'mode'        => $mode,
                 'lang'        => 'en',
                 'user' => [
                     'id'   => (string) $user->id,
@@ -165,7 +168,7 @@ class DocumentController extends Controller
         $doc = $model::findOrFail($id);
 
         if (Auth::check()) {
-            $this->authorizeDoc($doc);
+            $this->authorizeDoc($doc, $type);
         } else {
             if (!$this->hasValidContentAccessToken($request, $type, $id)) {
                 abort(403, 'Invalid content access token.');
@@ -261,9 +264,8 @@ class DocumentController extends Controller
                     $pathKey => $path,
                     $verKey  => ($doc->$verKey ?? 1) + 1,
                 ];
-                if ($type === 'lesson-plan') {
-                    $updates['status'] = 'approved';
-                }
+                // Note: lesson plan status is owned by the admin review workflow —
+                // saving from ONLYOFFICE only bumps the document version.
                 $doc->update($updates);
 
                 Log::info('ONLYOFFICE callback: document saved', ['type' => $type, 'id' => $id]);
@@ -292,14 +294,26 @@ class DocumentController extends Controller
         return [$m['model'], $m['ext'], $m['ooType']];
     }
 
-    private function authorizeDoc(mixed $doc): void
+    private function authorizeDoc(mixed $doc, string $type = ''): void
     {
+        // Admins may open any lesson plan document (review view)
+        if ($type === 'lesson-plan' && $this->isAdminUser()) {
+            return;
+        }
+
         $ownerId = (int) ($doc->user_id ?? 0);
         $currentUserId = (int) (Auth::id() ?? 0);
 
         if ($ownerId === 0 || $ownerId !== $currentUserId) {
             abort(403, 'You do not have access to this document.');
         }
+    }
+
+    // Same admin rule as AdminLessonPlanController / FacultyController
+    private function isAdminUser(): bool
+    {
+        $email = Str::lower((string) (Auth::user()->email ?? ''));
+        return $email === 'admin@mentora.local';
     }
 
     /**

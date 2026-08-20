@@ -4,9 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LessonPlan extends Model
 {
+    /** Admin review statuses. */
+    public const STATUS_PENDING        = 'pending';
+    public const STATUS_APPROVED       = 'approved';
+    public const STATUS_DENIED         = 'denied';
+    public const STATUS_NEEDS_REVISION = 'needs_revision';
+
     protected $fillable = [
         'user_id',
         'course_id',
@@ -29,6 +36,10 @@ class LessonPlan extends Model
         'docx_version',
         'ai_model',
         'status',
+        'submitted_at',
+        'admin_feedback',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected $casts = [
@@ -39,6 +50,8 @@ class LessonPlan extends Model
         'remarks'            => 'array',
         'reflection'         => 'array',
         'docx_version'       => 'integer',
+        'submitted_at'       => 'datetime',
+        'reviewed_at'        => 'datetime',
     ];
 
     /**
@@ -55,8 +68,24 @@ class LessonPlan extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(LessonPlanComment::class);
+    }
+
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /** Statuses a teacher can resubmit from. */
+    public static function resubmittableStatuses(): array
+    {
+        return [self::STATUS_DENIED, self::STATUS_NEEDS_REVISION];
     }
 }

@@ -59,7 +59,8 @@ class LessonPlanService
             'reflection' => $normalized['reflection'],
             'raw_ai_output' => $result['text'] ?? null,
             'ai_model' => $result['model'] ?? null,
-            'status' => 'draft',
+            'status' => LessonPlan::STATUS_PENDING,
+            'submitted_at' => now(),
             'docx_version' => 1,
         ]);
 

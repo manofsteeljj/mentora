@@ -17,6 +17,7 @@ const AdminStudents = lazy(() => import('./AdminStudents'))
 const AdminCourses = lazy(() => import('./AdminCourses'))
 const AdminMaterials = lazy(() => import('./AdminMaterials'))
 const AdminFaculty = lazy(() => import('./AdminFaculty'))
+const AdminLessonPlans = lazy(() => import('./AdminLessonPlans'))
 const AdminSettings = lazy(() => import('./AdminSettings'))
 const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
@@ -43,6 +44,7 @@ function getToken() {
 export default function DashboardLayout() {
   const [activeView, setActiveView] = useState('dashboard')
   const [userRole, setUserRole] = useState('faculty')
+  const [pendingLessonPlans, setPendingLessonPlans] = useState(0)
   const [conversations, setConversations] = useState([])
   const [activeConversationId, setActiveConversationId] = useState(null)
   const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState(null)
@@ -66,6 +68,15 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (userRole === 'admin') {
       setActiveView((prev) => (prev === 'dashboard' ? 'admin-dashboard' : prev))
+
+      // Pending lesson plan review count for the sidebar badge
+      fetch('/api/admin/lesson-plans?status=all', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => setPendingLessonPlans(data?.counts?.pending || 0))
+        .catch(() => {})
       return
     }
 
@@ -171,6 +182,8 @@ export default function DashboardLayout() {
         return <AdminMaterials />
       case 'admin-faculty':
         return <AdminFaculty />
+      case 'admin-lesson-plans':
+        return <AdminLessonPlans onPendingCountChange={setPendingLessonPlans} />
       case 'dashboard':
         return userRole === 'admin' ? <AdminDashboard /> : <Dashboard />
       case 'chat':
@@ -286,6 +299,7 @@ export default function DashboardLayout() {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewConversation}
         userRole={userRole}
+        pendingLessonPlans={pendingLessonPlans}
         onUploadStudents={() => setActiveView('students')}
         onDownloadStudents={() => setActiveView('students')}
       />

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { DocumentEditor } from '@onlyoffice/document-editor-react'
-import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles } from 'lucide-react'
+import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles, MessageSquare } from 'lucide-react'
 import { Button } from './ui/button'
 import EditorChatSidebar from './EditorChatSidebar'
+import CommentsSidebar from './CommentsSidebar'
 
 function csrf() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -15,12 +16,16 @@ function csrf() {
  * DocumentEditor component inside the Mentora UI.
  *
  * Props:
- *   documentType  — 'lesson-plan' | 'class-record'
- *   documentId    — numeric ID
- *   title         — display title (optional, shown in header)
- *   plan          — full lesson plan object (optional; gives the AI sidebar context)
- *   onBack        — callback when user clicks Back
- *   onSaved       — callback when ONLYOFFICE reports a successful save
+ *   documentType        — 'lesson-plan' | 'class-record'
+ *   documentId          — numeric ID
+ *   title               — display title (optional, shown in header)
+ *   plan                — full lesson plan object (optional; gives the AI sidebar context)
+ *   onBack              — callback when user clicks Back
+ *   onSaved             — callback when ONLYOFFICE reports a successful save
+ *   editorMode          — 'edit' (default) | 'view' — read-only rendering (admin review)
+ *   showChatSidebar     — show the "Ask AI" sidebar tab (default true)
+ *   showCommentsSidebar — show the review "Comments" sidebar tab (lesson plans only)
+ *   toolbarExtra        — extra node rendered at the right of the toolbar (e.g. review actions)
  */
 export default function OnlyOfficeEditor({
   documentType = 'lesson-plan',
@@ -29,18 +34,26 @@ export default function OnlyOfficeEditor({
   plan = null,
   onBack,
   onSaved,
+  editorMode = 'edit',
+  showChatSidebar = true,
+  showCommentsSidebar = false,
+  toolbarExtra = null,
 }) {
   const [state, setState] = useState('loading')   // loading | ready | error
   const [errorMsg, setErrorMsg] = useState('')
   const [editorConfig, setEditorConfig] = useState(null)
   const [ooUrl, setOoUrl] = useState('')
-  const [chatOpen, setChatOpen] = useState(() =>
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' && window.innerWidth >= 1280
   )
+  const [sidebarTab, setSidebarTab] = useState(showCommentsSidebar ? 'comments' : 'chat')
+  const [commentCount, setCommentCount] = useState(null)
   const editorRef = useRef(null)
 
   // The AI sidebar is only wired up for lesson plans (docx) for now
-  const showChat = documentType === 'lesson-plan'
+  const showChat = showChatSidebar && documentType === 'lesson-plan'
+  // Comments are a lesson-plan review feature
+  const showComments = showCommentsSidebar && documentType === 'lesson-plan'
 
   // ── Fetch editor config from Laravel ──────────────────────────────────────
   useEffect(() => {
@@ -49,7 +62,8 @@ export default function OnlyOfficeEditor({
     setState('loading')
     setErrorMsg('')
 
-    fetch(`/api/documents/${documentType}/${documentId}/editor`, {
+    const modeQuery = editorMode === 'view' ? '?mode=view' : ''
+    fetch(`/api/documents/${documentType}/${documentId}/editor${modeQuery}`, {
       headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() },
       credentials: 'same-origin',
     })
@@ -69,7 +83,7 @@ export default function OnlyOfficeEditor({
         setErrorMsg(err.message || 'Could not load document.')
         setState('error')
       })
-  }, [documentType, documentId])
+  }, [documentType, documentId, editorMode])
 
   // ── ONLYOFFICE event handlers ─────────────────────────────────────────────
   const onDocumentReady = () => {
@@ -108,26 +122,63 @@ export default function OnlyOfficeEditor({
           <FileText className="w-4 h-4 text-green-700 flex-shrink-0" />
           <span className="font-semibold text-gray-800 truncate">{title}</span>
           {state === 'ready' && (
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded ml-1">
-              Editing in ONLYOFFICE
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded ml-1 whitespace-nowrap">
+              {editorMode === 'view' ? 'Viewing in ONLYOFFICE (read-only)' : 'Editing in ONLYOFFICE'}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
+          {showComments && (
+            <Button
+              variant={sidebarOpen && sidebarTab === 'comments' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                if (sidebarOpen && sidebarTab === 'comments') {
+                  setSidebarOpen(false)
+                } else {
+                  setSidebarTab('comments')
+                  setSidebarOpen(true)
+                }
+              }}
+              title="Toggle comments sidebar"
+            >
+              <MessageSquare className="w-4 h-4 mr-1" />
+              Comments
+              {commentCount > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                  {commentCount}
+                </span>
+              )}
+            </Button>
+          )}
           {showChat && (
             <Button
-              variant={chatOpen ? 'default' : 'outline'}
+              variant={sidebarOpen && sidebarTab === 'chat' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setChatOpen(v => !v)}
+              onClick={() => {
+                if (sidebarOpen && sidebarTab === 'chat') {
+                  setSidebarOpen(false)
+                } else {
+                  setSidebarTab('chat')
+                  setSidebarOpen(true)
+                }
+              }}
               title="Toggle AI assistant sidebar"
             >
               <Sparkles className="w-4 h-4 mr-1" />
               Ask AI
             </Button>
           )}
-          <div className="text-xs text-gray-400 hidden sm:block">
-            Changes save automatically via ONLYOFFICE
-          </div>
+          {toolbarExtra}
+          {editorMode === 'view' ? (
+            <div className="text-xs text-gray-400 hidden sm:block">
+              Read-only review copy
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400 hidden sm:block">
+              Changes save automatically via ONLYOFFICE
+            </div>
+          )}
         </div>
       </div>
 
@@ -188,12 +239,19 @@ export default function OnlyOfficeEditor({
 
         </div>
 
-        {/* AI assistant sidebar */}
-        {showChat && chatOpen && (
+        {/* Sidebar — review comments (admin + teacher) or AI assistant (teacher) */}
+        {sidebarOpen && sidebarTab === 'comments' && showComments && (
+          <CommentsSidebar
+            lessonPlanId={documentId}
+            onClose={() => setSidebarOpen(false)}
+            onCountChange={setCommentCount}
+          />
+        )}
+        {sidebarOpen && sidebarTab !== 'comments' && showChat && (
           <EditorChatSidebar
             plan={plan}
             title={title}
-            onClose={() => setChatOpen(false)}
+            onClose={() => setSidebarOpen(false)}
           />
         )}
 

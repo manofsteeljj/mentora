@@ -16,6 +16,8 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\LessonPlanController;
+use App\Http\Controllers\LessonPlanCommentController;
+use App\Http\Controllers\AdminLessonPlanController;
 use App\Http\Controllers\DocumentController;
 
 Route::middleware(['auth'])->group(function () {
@@ -212,8 +214,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/lesson-plans/generate',                [LessonPlanController::class, 'generate'])   ->name('api.lesson-plans.generate');
     Route::get('/api/lesson-plans/{id}',                     [LessonPlanController::class, 'show'])       ->name('api.lesson-plans.show');
     Route::put('/api/lesson-plans/{id}',                     [LessonPlanController::class, 'update'])     ->name('api.lesson-plans.update');
+    Route::post('/api/lesson-plans/{id}/submit',             [LessonPlanController::class, 'submit'])     ->name('api.lesson-plans.submit');
     Route::delete('/api/lesson-plans/{id}',                  [LessonPlanController::class, 'destroy'])    ->name('api.lesson-plans.destroy');
     Route::get('/api/lesson-plans/{id}/export-docx',         [LessonPlanController::class, 'exportDocx'])->name('api.lesson-plans.export-docx');
+
+    // Lesson Plan Comments (owner teacher + admin reviewer)
+    Route::get('/api/lesson-plans/{id}/comments',                 [LessonPlanCommentController::class, 'index'])  ->name('api.lesson-plans.comments.index');
+    Route::post('/api/lesson-plans/{id}/comments',                [LessonPlanCommentController::class, 'store']) ->name('api.lesson-plans.comments.store');
+    Route::delete('/api/lesson-plans/{id}/comments/{commentId}',  [LessonPlanCommentController::class, 'destroy'])->name('api.lesson-plans.comments.destroy');
+
+    // Lesson Plan Admin Review API
+    Route::get('/api/admin/lesson-plans',                          [AdminLessonPlanController::class, 'index'])           ->name('api.admin.lesson-plans.index');
+    Route::get('/api/admin/lesson-plans/{id}',                     [AdminLessonPlanController::class, 'show'])            ->name('api.admin.lesson-plans.show');
+    Route::post('/api/admin/lesson-plans/{id}/approve',            [AdminLessonPlanController::class, 'approve'])         ->name('api.admin.lesson-plans.approve');
+    Route::post('/api/admin/lesson-plans/{id}/deny',               [AdminLessonPlanController::class, 'deny'])            ->name('api.admin.lesson-plans.deny');
+    Route::post('/api/admin/lesson-plans/{id}/request-revision',   [AdminLessonPlanController::class, 'requestRevision']) ->name('api.admin.lesson-plans.request-revision');
 
     // ONLYOFFICE Document API
     Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');

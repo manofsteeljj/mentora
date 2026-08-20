@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import {
   FileText, Plus, Trash2, Download, Check, ArrowLeft,
   Sparkles, BookOpen, Clock, Target, Loader2, ChevronDown,
-  ChevronUp, Save, Eye, RefreshCw, Edit3,
+  ChevronUp, Save, Eye, RefreshCw, Edit3, MessageSquare,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -51,9 +51,19 @@ const STRATEGIES = [
 const DURATIONS = ['30 minutes', '45 minutes', '50 minutes', '60 minutes', '90 minutes']
 
 const STATUS_COLORS = {
-  draft:     'bg-yellow-100 text-yellow-800 border-yellow-200',
-  approved:  'bg-green-100  text-green-800  border-green-200',
-  published: 'bg-blue-100   text-blue-800   border-blue-200',
+  draft:          'bg-gray-100   text-gray-800   border-gray-200',
+  pending:        'bg-blue-100   text-blue-800   border-blue-200',
+  approved:       'bg-green-100  text-green-800  border-green-200',
+  denied:         'bg-red-100    text-red-800    border-red-200',
+  needs_revision: 'bg-amber-100  text-amber-800  border-amber-200',
+}
+
+const STATUS_LABELS = {
+  draft:          'Draft',
+  pending:        'Pending Review',
+  approved:       'Approved',
+  denied:         'Denied',
+  needs_revision: 'Needs Revision',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -141,7 +151,7 @@ export default function LessonPlanCreator() {
         return
       }
 
-      toast.success('Lesson plan generated!', { id: 'gen' })
+      toast.success('Lesson plan generated and submitted for admin review!', { id: 'gen' })
       setActivePlan(data)
       setView('onlyoffice')
       fetchPlans()
@@ -185,6 +195,26 @@ export default function LessonPlanCreator() {
     }
   }
 
+  // ── Resubmit for admin review (denied / needs_revision) ─────────────────────
+  const resubmitPlan = async (id) => {
+    try {
+      const res = await fetch(`/api/lesson-plans/${id}/submit`, {
+        method:  'POST',
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() },
+        credentials: 'same-origin',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Resubmission failed.')
+        return
+      }
+      toast.success('Lesson plan resubmitted for admin review.')
+      fetchPlans()
+    } catch {
+      toast.error('Resubmission failed.')
+    }
+  }
+
   // ── Export docx ─────────────────────────────────────────────────────────────
   const exportDocx = (id) => {
     window.location.href = `/api/lesson-plans/${id}/export-docx`
@@ -204,6 +234,7 @@ export default function LessonPlanCreator() {
         documentId={activePlan.id}
         title={activePlan.title || 'Lesson Plan'}
         plan={activePlan}
+        showCommentsSidebar
         onBack={() => { setView('list'); fetchPlans() }}
         onSaved={() => { toast.success('Document saved.'); fetchPlans() }}
       />
@@ -363,7 +394,7 @@ export default function LessonPlanCreator() {
               Lesson Plans
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              AI-generated DepEd Daily Lesson Logs — edit, approve, and export.
+              AI-generated DepEd Daily Lesson Logs — edit, submit for admin review, and export.
             </p>
           </div>
           <Button
@@ -410,7 +441,7 @@ export default function LessonPlanCreator() {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <Badge className={`text-xs border ${STATUS_COLORS[plan.status] || STATUS_COLORS.draft}`}>
-                          {plan.status}
+                          {STATUS_LABELS[plan.status] || plan.status}
                         </Badge>
                       </div>
                     </div>
@@ -424,7 +455,51 @@ export default function LessonPlanCreator() {
                         </span>
                       )}
                       <span>{formatDate(plan.updated_at)}</span>
+                      {plan.submitted_at && (
+                        <span className="flex items-center gap-1">
+                          <Check className="w-3 h-3" />Submitted {formatDate(plan.submitted_at)}
+                        </span>
+                      )}
+                      {plan.comments_count > 0 && (
+                        <button
+                          className="flex items-center gap-1 text-amber-600 hover:text-amber-700"
+                          title="Open the plan to read review comments"
+                          onClick={() => openPlan(plan.id)}
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          {plan.comments_count} {plan.comments_count === 1 ? 'comment' : 'comments'}
+                        </button>
+                      )}
                     </div>
+
+                    {/* Admin review feedback */}
+                    {(plan.status === 'denied' || plan.status === 'needs_revision') && (
+                      <div className={`mt-3 p-2.5 rounded-md border text-xs flex items-start gap-2 ${
+                        plan.status === 'denied'
+                          ? 'bg-red-50 border-red-200 text-red-700'
+                          : 'bg-amber-50 border-amber-200 text-amber-700'
+                      }`}>
+                        <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <span className="font-medium">
+                            {plan.status === 'denied' ? 'Denied by admin' : 'Revision requested by admin'}
+                            {plan.reviewed_at ? ` · ${formatDate(plan.reviewed_at)}` : ''}:
+                          </span>{' '}
+                          {plan.admin_feedback || 'No feedback was provided.'}
+                          <button
+                            className="block mt-1.5 font-medium underline hover:no-underline"
+                            onClick={() => resubmitPlan(plan.id)}
+                          >
+                            Resubmit for review →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {plan.status === 'pending' && (
+                      <p className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />Waiting for admin review — you can still edit the document.
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Button
@@ -562,7 +637,6 @@ function LessonPlanEditor({ plan: initialPlan, onBack, onExport, onUpdate }) {
           procedures:          plan.procedures,
           remarks:             plan.remarks,
           reflection:          plan.reflection,
-          status:              plan.status,
         }),
       })
       const updated = await res.json()
@@ -575,17 +649,6 @@ function LessonPlanEditor({ plan: initialPlan, onBack, onExport, onUpdate }) {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleApprove = async () => {
-    await fetch(`/api/lesson-plans/${plan.id}`, {
-      method:  'PUT',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-      credentials: 'same-origin',
-      body: JSON.stringify({ status: 'approved' }),
-    })
-    setPlan(prev => ({ ...prev, status: 'approved' }))
-    toast.success('Lesson plan approved!')
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -616,13 +679,8 @@ function LessonPlanEditor({ plan: initialPlan, onBack, onExport, onUpdate }) {
         <div className="flex items-center gap-2 flex-shrink-0">
           {dirty && <span className="text-xs text-amber-600 font-medium">Unsaved changes</span>}
           <Badge className={`text-xs border ${STATUS_COLORS[plan.status] || STATUS_COLORS.draft}`}>
-            {plan.status}
+            {STATUS_LABELS[plan.status] || plan.status}
           </Badge>
-          {plan.status === 'draft' && (
-            <Button variant="outline" size="sm" onClick={handleApprove}>
-              <Check className="w-4 h-4 mr-1" />Approve
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={onExport}>
             <Download className="w-4 h-4 mr-1" />Export .docx
           </Button>

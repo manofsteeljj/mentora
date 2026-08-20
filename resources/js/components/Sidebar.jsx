@@ -39,6 +39,7 @@ export default function Sidebar({
   onUploadStudents,
   onDownloadStudents,
   userRole = 'faculty',
+  pendingLessonPlans = 0,
 }) {
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -108,6 +109,20 @@ export default function Sidebar({
               >
                 <Users className="w-4 h-4 mr-2" />
                 Faculty Members
+              </Button>
+
+              <Button
+                variant={activeView === 'admin-lesson-plans' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('admin-lesson-plans')}
+              >
+                <NotebookPen className="w-4 h-4 mr-2" />
+                Lesson Plans
+                {pendingLessonPlans > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                    {pendingLessonPlans}
+                  </span>
+                )}
               </Button>
             </>
           ) : (

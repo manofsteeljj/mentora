@@ -18,10 +18,12 @@ class LessonPlanController extends Controller
     public function index(Request $request): JsonResponse
     {
         $plans = LessonPlan::where('user_id', Auth::id())
+            ->withCount('comments')
             ->orderByDesc('updated_at')
             ->get([
                 'id', 'title', 'grade_level', 'subject', 'topic',
                 'duration', 'ai_model', 'status', 'created_at', 'updated_at',
+                'submitted_at', 'reviewed_at', 'admin_feedback',
             ]);
 
         return response()->json($plans);
@@ -80,10 +82,34 @@ class LessonPlanController extends Controller
             'procedures'          => ['nullable', 'array'],
             'remarks'             => ['nullable', 'array'],
             'reflection'          => ['nullable', 'array'],
-            'status'              => ['nullable', 'string', 'in:draft,approved,published'],
         ]);
 
+        // Status is managed by the admin review workflow, never by direct edits.
         $plan->update($data);
+
+        return response()->json($plan);
+    }
+
+    // ── POST /api/lesson-plans/{id}/submit ───────────────────────────────────
+    // Teacher resubmits a denied / needs-revision plan for admin review.
+
+    public function submit(int $id): JsonResponse
+    {
+        $plan = LessonPlan::where('user_id', Auth::id())->findOrFail($id);
+
+        if (!in_array($plan->status, LessonPlan::resubmittableStatuses(), true)) {
+            return response()->json([
+                'error' => 'Only denied or needs-revision lesson plans can be resubmitted.',
+            ], 422);
+        }
+
+        $plan->update([
+            'status'         => LessonPlan::STATUS_PENDING,
+            'submitted_at'   => now(),
+            'admin_feedback' => null,
+            'reviewed_by'    => null,
+            'reviewed_at'    => null,
+        ]);
 
         return response()->json($plan);
     }
