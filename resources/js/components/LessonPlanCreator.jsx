@@ -203,6 +203,7 @@ export default function LessonPlanCreator() {
         documentType="lesson-plan"
         documentId={activePlan.id}
         title={activePlan.title || 'Lesson Plan'}
+        plan={activePlan}
         onBack={() => { setView('list'); fetchPlans() }}
         onSaved={() => { toast.success('Document saved.'); fetchPlans() }}
       />

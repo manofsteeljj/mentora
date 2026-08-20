@@ -691,14 +691,67 @@ PROMPT;
         return trim((string) preg_replace('/\s+/u', ' ', $node->textContent));
     }
 
+    /**
+     * Run properties for generated value text — matches the template's
+     * value cells exactly (Arial Narrow, 10pt, non-bold).
+     */
+    private function buildValueRunProperties(DOMDocument $doc): DOMElement
+    {
+        $ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+        $rPr = $doc->createElementNS($ns, 'w:rPr');
+
+        $rFonts = $doc->createElementNS($ns, 'w:rFonts');
+        foreach (['w:ascii', 'w:cs', 'w:eastAsia', 'w:hAnsi'] as $attr) {
+            $rFonts->setAttribute($attr, 'Arial Narrow');
+        }
+        $rPr->appendChild($rFonts);
+
+        $rPr->appendChild($doc->createElementNS($ns, 'w:sz'))->setAttribute('w:val', '20');
+        $rPr->appendChild($doc->createElementNS($ns, 'w:szCs'))->setAttribute('w:val', '20');
+        $rPr->appendChild($doc->createElementNS($ns, 'w:rtl'))->setAttribute('w:val', '0');
+
+        return $rPr;
+    }
+
     private function setCellText(DOMDocument $doc, ?\DOMNode $cell, string $text): void
     {
         if (!$cell instanceof DOMElement) {
             return;
         }
 
+        // Capture the paragraph properties (w:pPr) of the cell's first
+        // paragraph so new paragraphs keep the template's exact formatting.
+        $paragraphs  = $cell->getElementsByTagName('p');
+        $pPrTemplate = null;
+
+        if ($paragraphs->length > 0) {
+            $firstP = $paragraphs->item(0);
+            $pPr    = $firstP->getElementsByTagName('pPr')->item(0);
+            if ($pPr) {
+                $pPrTemplate = $pPr->cloneNode(true);
+                // The empty template cells carry bold on the paragraph-mark
+                // rPr; value text in the template (e.g. the Declaration cell)
+                // is non-bold — strip bold to match.
+                foreach (iterator_to_array($pPrTemplate->getElementsByTagName('b')) as $b) {
+                    $b->parentNode?->removeChild($b);
+                }
+                foreach (iterator_to_array($pPrTemplate->getElementsByTagName('bCs')) as $bCs) {
+                    $bCs->parentNode?->removeChild($bCs);
+                }
+            }
+        }
+
+        // Value runs use the template's value-text style: Arial Narrow 10pt,
+        // non-bold — identical to the Declaration cell's filled-in runs.
+        $rPrTemplate = $this->buildValueRunProperties($doc);
+
+        // Remove ONLY the paragraphs — keep w:tcPr (gridSpan, borders, vAlign,
+        // margins) intact so the table layout is pixel-identical to the template.
         foreach (iterator_to_array($cell->childNodes) as $child) {
-            $cell->removeChild($child);
+            if ($child instanceof DOMElement && $child->localName === 'p') {
+                $cell->removeChild($child);
+            }
         }
 
         $lines = preg_split('/\r\n|\r|\n/', trim($text)) ?: [''];
@@ -709,7 +762,15 @@ PROMPT;
         $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
         foreach ($lines as $line) {
             $p = $doc->createElementNS($namespace, 'w:p');
+            if ($pPrTemplate) {
+                $p->appendChild($pPrTemplate->cloneNode(true));
+            }
+
             $r = $doc->createElementNS($namespace, 'w:r');
+            if ($rPrTemplate) {
+                $r->appendChild($rPrTemplate->cloneNode(true));
+            }
+
             $t = $doc->createElementNS($namespace, 'w:t');
             $t->setAttribute('xml:space', 'preserve');
             $t->appendChild($doc->createTextNode($line));
@@ -730,9 +791,20 @@ PROMPT;
             return;
         }
 
+        $labelLower = mb_strtolower($label);
+
         foreach ($paragraphs as $p) {
             $text = $this->nodeText($p);
-            if (!str_contains(mb_strtolower($text), mb_strtolower($label))) {
+
+            // The label must START the paragraph — prevents "SESSION 1"
+            // matching a body paragraph that merely mentions it.
+            if (!str_starts_with(mb_strtolower($text), $labelLower)) {
+                continue;
+            }
+
+            // Skip label paragraphs that live inside the header table — those
+            // are handled by setCellText (e.g. "References(...)" cell).
+            if ($p->parentNode && $p->parentNode->parentNode && $p->parentNode->parentNode->localName === 'tc') {
                 continue;
             }
 
@@ -751,8 +823,25 @@ PROMPT;
 
     private function setParagraphText(DOMDocument $doc, DOMElement $paragraph, string $text): void
     {
+        // Preserve the paragraph's pPr (spacing, tabs, fonts) exactly.
+        $pPr = $paragraph->getElementsByTagName('pPr')->item(0);
+
+        // Reuse the paragraph's first run formatting for the new text.
+        $rPrTemplate = null;
+        foreach ($paragraph->getElementsByTagName('r') as $run) {
+            $rPr = $run->getElementsByTagName('rPr')->item(0);
+            if ($rPr) {
+                $rPrTemplate = $rPr->cloneNode(true);
+                break;
+            }
+        }
+
         foreach (iterator_to_array($paragraph->childNodes) as $child) {
             $paragraph->removeChild($child);
+        }
+
+        if ($pPr) {
+            $paragraph->appendChild($pPr);
         }
 
         $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -764,12 +853,18 @@ PROMPT;
         foreach ($lines as $idx => $line) {
             if ($idx > 0) {
                 $rBr = $doc->createElementNS($namespace, 'w:r');
+                if ($rPrTemplate) {
+                    $rBr->appendChild($rPrTemplate->cloneNode(true));
+                }
                 $br = $doc->createElementNS($namespace, 'w:br');
                 $rBr->appendChild($br);
                 $paragraph->appendChild($rBr);
             }
 
             $r = $doc->createElementNS($namespace, 'w:r');
+            if ($rPrTemplate) {
+                $r->appendChild($rPrTemplate->cloneNode(true));
+            }
             $t = $doc->createElementNS($namespace, 'w:t');
             $t->setAttribute('xml:space', 'preserve');
             $t->appendChild($doc->createTextNode($line));

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { DocumentEditor } from '@onlyoffice/document-editor-react'
-import { Loader2, AlertTriangle, ArrowLeft, FileText } from 'lucide-react'
+import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles } from 'lucide-react'
 import { Button } from './ui/button'
+import EditorChatSidebar from './EditorChatSidebar'
 
 function csrf() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -17,6 +18,7 @@ function csrf() {
  *   documentType  — 'lesson-plan' | 'class-record'
  *   documentId    — numeric ID
  *   title         — display title (optional, shown in header)
+ *   plan          — full lesson plan object (optional; gives the AI sidebar context)
  *   onBack        — callback when user clicks Back
  *   onSaved       — callback when ONLYOFFICE reports a successful save
  */
@@ -24,6 +26,7 @@ export default function OnlyOfficeEditor({
   documentType = 'lesson-plan',
   documentId,
   title = 'Document',
+  plan = null,
   onBack,
   onSaved,
 }) {
@@ -31,7 +34,13 @@ export default function OnlyOfficeEditor({
   const [errorMsg, setErrorMsg] = useState('')
   const [editorConfig, setEditorConfig] = useState(null)
   const [ooUrl, setOoUrl] = useState('')
+  const [chatOpen, setChatOpen] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth >= 1280
+  )
   const editorRef = useRef(null)
+
+  // The AI sidebar is only wired up for lesson plans (docx) for now
+  const showChat = documentType === 'lesson-plan'
 
   // ── Fetch editor config from Laravel ──────────────────────────────────────
   useEffect(() => {
@@ -104,13 +113,29 @@ export default function OnlyOfficeEditor({
             </span>
           )}
         </div>
-        <div className="text-xs text-gray-400 flex-shrink-0">
-          Changes save automatically via ONLYOFFICE
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {showChat && (
+            <Button
+              variant={chatOpen ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setChatOpen(v => !v)}
+              title="Toggle AI assistant sidebar"
+            >
+              <Sparkles className="w-4 h-4 mr-1" />
+              Ask AI
+            </Button>
+          )}
+          <div className="text-xs text-gray-400 hidden sm:block">
+            Changes save automatically via ONLYOFFICE
+          </div>
         </div>
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+
+        {/* Editor column */}
+        <div className="flex-1 relative min-w-0">
 
         {state === 'loading' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-50">
@@ -159,6 +184,17 @@ export default function OnlyOfficeEditor({
               width="100%"
             />
           </div>
+        )}
+
+        </div>
+
+        {/* AI assistant sidebar */}
+        {showChat && chatOpen && (
+          <EditorChatSidebar
+            plan={plan}
+            title={title}
+            onClose={() => setChatOpen(false)}
+          />
         )}
 
       </div>
