@@ -140,6 +140,20 @@ class DocumentController extends Controller
             ],
         ];
 
+        // Autostart the "insert bridge" plugin (served by this app) that the AI
+        // sidebar's "Insert into document" button talks to. Only needed while
+        // editing — read-only review mode can't accept insertions anyway.
+        if ($mode === 'edit') {
+            $config['editorConfig']['plugins'] = [
+                'autostart'   => [OnlyofficeInsertPluginController::GUID],
+                // Browser-facing URL (the editor iframe fetches this), NOT the
+                // docker-internal one used for document content.
+                'pluginsData' => [
+                    $request->getSchemeAndHttpHost() . '/' . OnlyofficeInsertPluginController::PATH . '/config.json',
+                ],
+            ];
+        }
+
         // Sign with JWT if a secret is configured
         if ($jwtSecret !== '') {
             // ONLYOFFICE expects the JWT payload to match the config shape directly.

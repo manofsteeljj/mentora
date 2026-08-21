@@ -24,7 +24,7 @@ Laravel validates JSON
           ▼
    Excel-like editor
           │
-          ├── Edit
+          
           ├── Save
           └── Export .xlsx
 1. Don't make the LLM generate an actual .xlsx

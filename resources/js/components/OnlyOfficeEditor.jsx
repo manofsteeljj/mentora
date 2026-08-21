@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DocumentEditor } from '@onlyoffice/document-editor-react'
+import { toast } from 'sonner'
 import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles, MessageSquare } from 'lucide-react'
 import { Button } from './ui/button'
 import EditorChatSidebar from './EditorChatSidebar'
@@ -7,6 +8,15 @@ import CommentsSidebar from './CommentsSidebar'
 
 function csrf() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+}
+
+// How long to wait for the insert-bridge plugin to acknowledge an insertion
+const INSERT_ACK_TIMEOUT_MS = 8000
+
+function insertErrorMessage(error) {
+  if (error === 'editor-not-ready') return 'The document editor is still loading — try again in a few seconds.'
+  if (error === 'empty') return 'There is nothing to insert — the response is empty.'
+  return 'Could not insert into the document. Please try again.'
 }
 
 /**
@@ -26,6 +36,10 @@ function csrf() {
  *   showChatSidebar     — show the "Ask AI" sidebar tab (default true)
  *   showCommentsSidebar — show the review "Comments" sidebar tab (lesson plans only)
  *   toolbarExtra        — extra node rendered at the right of the toolbar (e.g. review actions)
+ *
+ * Owns the "Insert into document" bridge: the AI sidebar calls
+ * onInsertIntoDocument(text), which is relayed to the hidden ONLYOFFICE
+ * insert-bridge plugin and inserted at the document's cursor position.
  */
 export default function OnlyOfficeEditor({
   documentType = 'lesson-plan',
@@ -49,6 +63,52 @@ export default function OnlyOfficeEditor({
   const [sidebarTab, setSidebarTab] = useState(showCommentsSidebar ? 'comments' : 'chat')
   const [commentCount, setCommentCount] = useState(null)
   const editorRef = useRef(null)
+
+  // ── "Insert into document" bridge ─────────────────────────────────────────
+  // Laravel autostarts a tiny hidden ONLYOFFICE plugin (served by the app
+  // itself) that relays text into the open document. The plugin iframe
+  // announces itself here once loaded; insertions are then posted to it.
+  const insertPluginWindowRef = useRef(null)
+  const insertPendingRef = useRef(null)          // { reqId, timer, resolve }
+  const [insertBridgeReady, setInsertBridgeReady] = useState(false)
+
+  useEffect(() => {
+    const onWindowMessage = (e) => {
+      // The bridge plugin is served by this app — same origin as the page
+      if (e.origin !== window.location.origin) return
+      const data = e.data
+      if (!data || typeof data !== 'object') return
+
+      if (data.type === 'mentora:plugin-ready') {
+        insertPluginWindowRef.current = e.source
+        setInsertBridgeReady(true)
+        return
+      }
+
+      if (data.type === 'mentora:insert-result') {
+        const pending = insertPendingRef.current
+        if (!pending || pending.reqId !== data.reqId) return
+        insertPendingRef.current = null
+        clearTimeout(pending.timer)
+        if (data.ok) {
+          pending.resolve(true)
+        } else {
+          toast.error(insertErrorMessage(data.error))
+          pending.resolve(false)
+        }
+      }
+    }
+
+    window.addEventListener('message', onWindowMessage)
+    return () => window.removeEventListener('message', onWindowMessage)
+  }, [])
+
+  // The editor (and with it the bridge plugin) is recreated whenever the
+  // document changes — wait for a fresh "plugin ready" handshake.
+  useEffect(() => {
+    setInsertBridgeReady(false)
+    insertPluginWindowRef.current = null
+  }, [documentType, documentId, editorMode])
 
   // The AI sidebar is only wired up for lesson plans (docx) for now
   const showChat = showChatSidebar && documentType === 'lesson-plan'
@@ -105,6 +165,47 @@ export default function OnlyOfficeEditor({
 
   const onRequestSaveAs = () => {
     onSaved?.()
+  }
+
+  // Passes the AI response to the bridge plugin, which inserts it at the
+  // document's current cursor position. Resolves true on success.
+  const handleInsertIntoDocument = (text) => {
+    const value = String(text ?? '').trim()
+    if (!value) {
+      toast.error('There is nothing to insert — the response is empty.')
+      return Promise.resolve(false)
+    }
+
+    const pluginWindow = insertPluginWindowRef.current
+    if (!pluginWindow || !insertBridgeReady) {
+      toast.error('The document editor is still loading — try again in a few seconds.')
+      return Promise.resolve(false)
+    }
+
+    return new Promise((resolve) => {
+      const reqId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+      const timer = setTimeout(() => {
+        if (insertPendingRef.current?.reqId !== reqId) return
+        insertPendingRef.current = null
+        toast.error('Could not reach the document editor — please try again.')
+        resolve(false)
+      }, INSERT_ACK_TIMEOUT_MS)
+
+      insertPendingRef.current = { reqId, timer, resolve }
+
+      try {
+        pluginWindow.postMessage(
+          { type: 'mentora:insert', reqId, text: value },
+          window.location.origin
+        )
+      } catch (err) {
+        clearTimeout(timer)
+        insertPendingRef.current = null
+        toast.error('Could not insert into the document. Please try again.')
+        resolve(false)
+      }
+    })
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -252,6 +353,8 @@ export default function OnlyOfficeEditor({
             plan={plan}
             title={title}
             onClose={() => setSidebarOpen(false)}
+            onInsertIntoDocument={editorMode === 'edit' ? handleInsertIntoDocument : null}
+            canInsertIntoDocument={insertBridgeReady && editorMode === 'edit'}
           />
         )}
 

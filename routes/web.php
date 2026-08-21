@@ -19,6 +19,7 @@ use App\Http\Controllers\LessonPlanController;
 use App\Http\Controllers\LessonPlanCommentController;
 use App\Http\Controllers\AdminLessonPlanController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\OnlyofficeInsertPluginController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -249,3 +250,9 @@ Route::post('/api/documents/onlyoffice/callback', [DocumentController::class, 'c
 // ONLYOFFICE content download — accessed by ONLYOFFICE server using short-lived JWT query token
 Route::get('/api/documents/{type}/{id}/content', [DocumentController::class, 'content'])
     ->name('api.documents.content');
+
+// ONLYOFFICE "insert bridge" plugin — fetched by the editor iframe (cross-origin, no session)
+Route::get('/plugins/mentora-insert/config.json', [OnlyofficeInsertPluginController::class, 'config'])
+    ->name('plugins.onlyoffice-insert.config');
+Route::get('/plugins/mentora-insert/index.html', [OnlyofficeInsertPluginController::class, 'page'])
+    ->name('plugins.onlyoffice-insert.page');

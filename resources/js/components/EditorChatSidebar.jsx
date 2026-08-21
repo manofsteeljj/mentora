@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Textarea } from './ui/textarea'
-import { Send, Loader2, User, X, Copy, Check, FileText, Plus } from 'lucide-react'
+import { Send, Loader2, User, X, Copy, Check, FileText, Plus, FileInput } from 'lucide-react'
 import logoImage from '../../logo/MENTORA LOGO.png'
 
 function csrf() {
@@ -77,13 +77,25 @@ async function copyToClipboard(text) {
  *   plan    — lesson plan object (title, grade_level, subject, topic, …)
  *   title   — display title fallback when no plan object is available
  *   onClose — callback when the user closes the sidebar
+ *   onInsertIntoDocument — callback (text) => Promise<boolean> that inserts the
+ *                          given AI response into the open ONLYOFFICE document.
+ *                          Null when the editor cannot accept insertions
+ *                          (e.g. read-only review mode).
+ *   canInsertIntoDocument — whether the insert bridge is ready (editor loaded)
  */
-export default function EditorChatSidebar({ plan = null, title = 'Document', onClose }) {
+export default function EditorChatSidebar({
+  plan = null,
+  title = 'Document',
+  onClose,
+  onInsertIntoDocument = null,
+  canInsertIntoDocument = false,
+}) {
   const [messages, setMessages]         = useState([])
   const [input, setInput]               = useState('')
   const [isLoading, setIsLoading]       = useState(false)
   const [conversationId, setConversationId] = useState(null)
   const [copiedId, setCopiedId]         = useState(null)
+  const [insertedId, setInsertedId]     = useState(null)
   const [materials, setMaterials]       = useState([])
   const [attachedMaterial, setAttachedMaterial] = useState(null)
   const [showMaterialPicker, setShowMaterialPicker] = useState(false)
@@ -253,6 +265,129 @@ export default function EditorChatSidebar({ plan = null, title = 'Document', onC
     }
   }
 
+  // Extracts only the necessary content from the AI response, removing
+  // markdown formatting, code fences, meta-commentary, and explanatory text,
+  // then inserts the clean content into the ONLYOFFICE document at the cursor.
+  const handleInsert = async (message) => {
+    if (typeof onInsertIntoDocument !== 'function') {
+      toast.error('Inserting is only available while editing a document.')
+      return
+    }
+    
+    // Extract only necessary content
+    const cleanContent = extractNecessaryContent(message.content)
+    
+    if (!cleanContent.trim()) {
+      toast.error('No content to insert after cleanup.')
+      return
+    }
+    
+    const ok = await onInsertIntoDocument(cleanContent)
+    if (ok) {
+      setInsertedId(message.id)
+      toast.success('Inserted into your document.')
+      setTimeout(() => setInsertedId(null), 2000)
+    }
+  }
+  
+  /**
+   * Extracts only the necessary content from an AI response.
+   * Removes markdown formatting, code fences, meta-commentary, etc.
+   */
+  const extractNecessaryContent = (rawContent) => {
+    let content = String(rawContent || '').trim()
+    
+    // Remove markdown code fences (```json, ```text, etc.)
+    content = content.replace(/```(?:json|javascript|text|markdown|html|xml|css|python|php)?\s*/gi, '')
+    content = content.replace(/```/g, '')
+    
+    // Remove common meta-commentary patterns at the start
+    const metaPrefixes = [
+      /^(?:here|this|below)\s+(?:is|are|'s)\s+(?:a|an|the|your|some)?\s*(?:suggested|revised|improved|complete|final)?\s*(?:version|draft|text|content|output|response|answer)?:?\s*/i,
+      /^(?:certainly|sure|of course|absolutely|definitely)!?\s*(?:here|i'?ve|let me|i can)?\s*(?:provide|give|present|share|show|offer|created?|generated?)?\s*(?:you|some)?\s*(?:with)?\s*(?:a|an|the|your|some)?\s*(?:suggested|revised|improved|complete|final)?\s*(?:version|draft|text|content|output|response|answer)?:?\s*/i,
+      /^i'?(?:ve|ll|d)?\s+(?:created?|generated?|prepared?|written|made|provided|revised|improved|updated)\s+(?:a|an|the|your|some)?\s*(?:suggested|revised|improved|complete|final)?\s*(?:version|draft|text|content|output|response)?:?\s*/i,
+      /^(?:based on|considering|taking into account|as requested)\s+(?:your|the)\s+(?:request|input|requirements?)[:,]?\s*/i,
+    ]
+    
+    for (const pattern of metaPrefixes) {
+      content = content.replace(pattern, '')
+    }
+    
+    // Remove common closing commentary
+    const metaSuffixes = [
+      /\n\s*(?:feel free to|please|you can)\s+(?:let me know|tell me|ask|modify|adjust|edit|change|customize)\s+.{0,100}$/i,
+      /\n\s*(?:i hope|this should|this will)\s+(?:helps?|works?|meets?)\s+.{0,80}$/i,
+      /\n\s*(?:note|remember|important):\s*.{0,100}$/i,
+    ]
+    
+    for (const pattern of metaSuffixes) {
+      content = content.replace(pattern, '')
+    }
+    
+    // If the content looks like it's wrapped in a single JSON structure or list, extract it
+    content = content.trim()
+    
+    // If it starts with explanatory text followed by a list/content, try to extract just the list
+    const listMatch = content.match(/(?:^|\n)(?:[-*•]|\d+\.)\s+.+/s)
+    if (listMatch && listMatch.index > 0 && listMatch.index < 200) {
+      // There's explanatory text before a list — check if we should extract just the list
+      const beforeList = content.substring(0, listMatch.index).trim()
+      const afterList = content.substring(listMatch.index).trim()
+      
+      // If the text before the list is short meta-commentary, prefer just the list
+      if (beforeList.length < 150 && /^(?:here|this|below|i'?ve|suggested|revised)/i.test(beforeList)) {
+        content = afterList
+      }
+    }
+    
+    // Remove markdown bold/italic (but keep the text)
+    content = content.replace(/\*\*\*(.+?)\*\*\*/g, '$1')  // bold+italic
+    content = content.replace(/\*\*(.+?)\*\*/g, '$1')      // bold
+    content = content.replace(/\*(.+?)\*/g, '$1')          // italic
+    content = content.replace(/__(.+?)__/g, '$1')          // bold alt
+    content = content.replace(/_(.+?)_/g, '$1')            // italic alt
+    
+    // Remove markdown headers but keep the text
+    content = content.replace(/^#{1,6}\s+/gm, '')
+    
+    // Clean up excessive line breaks (more than 2 consecutive)
+    content = content.replace(/\n{3,}/g, '\n\n')
+    
+    // Remove horizontal rules
+    content = content.replace(/^(?:---+|===+|\*\*\*+|___+)\s*$/gm, '')
+    
+    // Clean up blockquote markers
+    content = content.replace(/^>\s+/gm, '')
+    
+    // Trim final result
+    content = content.trim()
+    
+    // If the content is a JSON-like structure that was accidentally included, try to extract readable parts
+    if (content.startsWith('{') && content.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(content)
+        // If it's a simple object with text values, extract and format them
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const parts = []
+          for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === 'string' && value.trim()) {
+              parts.push(value.trim())
+            } else if (Array.isArray(value)) {
+              parts.push(...value.filter(v => typeof v === 'string' && v.trim()))
+            }
+          }
+          if (parts.length > 0) {
+            content = parts.join('\n\n')
+          }
+        }
+      } catch {
+        // Not valid JSON, keep as-is
+      }
+    }
+    
+    return content
+  }
+
   // ── Quick prompts for lesson plan editing ────────────────────────────────────
   const quickPrompts = [
     { label: '🎯 Improve my objectives', prompt: 'Review the learning objectives of this lesson plan and suggest improved, measurable versions.' },
@@ -372,19 +507,38 @@ export default function EditorChatSidebar({ plan = null, title = 'Document', onC
                   <p className="whitespace-pre-wrap text-sm text-gray-900">{message.content}</p>
                 )}
 
-                {/* Copy button for assistant replies */}
+                {/* Actions for assistant replies */}
                 {message.role === 'assistant' && !isLoading && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(message)}
-                    className="mt-1.5 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-green-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    {copiedId === message.id
-                      ? <><Check className="w-3.5 h-3.5" />Copied</>
-                      : <><Copy className="w-3.5 h-3.5" />Copy</>
-                    }
-                  </button>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(message)}
+                      className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-green-700 transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {copiedId === message.id
+                        ? <><Check className="w-3.5 h-3.5" />Copied</>
+                        : <><Copy className="w-3.5 h-3.5" />Copy</>
+                      }
+                    </button>
+
+                    {onInsertIntoDocument && (
+                      <button
+                        type="button"
+                        onClick={() => handleInsert(message)}
+                        disabled={!canInsertIntoDocument}
+                        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-green-700 transition-colors disabled:text-gray-300 disabled:hover:text-gray-300 disabled:cursor-not-allowed"
+                        title={canInsertIntoDocument
+                          ? 'Insert into the open document at the cursor'
+                          : 'The document editor is still loading…'}
+                      >
+                        {insertedId === message.id
+                          ? <><Check className="w-3.5 h-3.5" />Inserted</>
+                          : <><FileInput className="w-3.5 h-3.5" />Insert into document</>
+                        }
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Source citations */}
