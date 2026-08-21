@@ -26,7 +26,7 @@ function insertErrorMessage(error) {
  * DocumentEditor component inside the Mentora UI.
  *
  * Props:
- *   documentType        — 'lesson-plan' | 'class-record'
+ *   documentType        — 'lesson-plan' | 'class-record' | 'attendance-sf2'
  *   documentId          — numeric ID
  *   title               — display title (optional, shown in header)
  *   plan                — full lesson plan object (optional; gives the AI sidebar context)

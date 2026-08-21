@@ -233,12 +233,14 @@ Route::middleware('auth')->group(function () {
 
     // ONLYOFFICE Document API
     Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');
+    Route::post('/api/documents/attendance-sf2/generate',   [DocumentController::class, 'generateSf2']) ->name('api.documents.attendance-sf2.generate');
     Route::get('/api/documents/{type}/{id}/editor',          [DocumentController::class, 'editor'])  ->name('api.documents.editor');
 
     // Attendance API
     Route::get('/api/attendance/records', [AttendanceController::class, 'index'])->name('api.attendance.records');
     Route::put('/api/attendance/records', [AttendanceController::class, 'upsert'])->name('api.attendance.upsert');
     Route::post('/api/attendance/excuse-letters/{excuseLetter}/review', [AttendanceController::class, 'reviewExcuseLetter'])->name('api.attendance.reviewExcuse');
+    Route::get('/api/attendance/export-sf2', [AttendanceController::class, 'exportSF2'])->name('api.attendance.export-sf2');
 });
 
 require __DIR__.'/auth.php';

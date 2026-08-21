@@ -5,6 +5,7 @@ import {
   X,
   Clock,
   FileText,
+  FileSpreadsheet,
   Download,
   Filter,
   ChevronDown,
@@ -30,6 +31,7 @@ import {
 import { Textarea } from './ui/textarea'
 import { Progress } from './ui/progress'
 import { formatCourseLabel } from '../lib/courseDisplay'
+import OnlyOfficeEditor from './OnlyOfficeEditor'
 
 export default function Attendance() {
   const [courses, setCourses] = useState([])
@@ -43,6 +45,13 @@ export default function Attendance() {
   const [viewExcuseDialog, setViewExcuseDialog] = useState({ open: false, letter: null, studentName: null })
   const [expandedStudent, setExpandedStudent] = useState(null)
   const [reviewNotes, setReviewNotes] = useState('')
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportMonth, setExportMonth] = useState(new Date().getMonth() + 1)
+  const [exportYear, setExportYear] = useState(new Date().getFullYear())
+  const [isExporting, setIsExporting] = useState(false)
+  const [ooDocId, setOoDocId] = useState(null)
+  const [ooDocTitle, setOoDocTitle] = useState('SF2 Attendance Report')
+  const [showOOEditor, setShowOOEditor] = useState(false)
 
   const selectedCourseInfo = useMemo(() => courses.find(c => String(c.id) === String(selectedCourse)), [courses, selectedCourse])
 
@@ -156,6 +165,106 @@ export default function Attendance() {
     return studentStats[String(studentId)] || { present: 0, absent: 0, late: 0, excused: 0, total: 0, attendanceRate: 100 }
   }
 
+  const handleExportSF2 = async () => {
+    if (!selectedCourse) {
+      alert('Please select a course first')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const params = new URLSearchParams({
+        course_id: selectedCourse,
+        month: exportMonth,
+        year: exportYear,
+      })
+
+      const response = await fetch(`/api/attendance/export-sf2?${params}`, {
+        headers: {
+          'Accept': 'application/vnd.ms-excel',
+          'X-CSRF-TOKEN': getToken(),
+        },
+        credentials: 'same-origin',
+      })
+
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = 'Export failed'
+        try {
+          const errorText = await response.text()
+          console.error('Server response:', errorText)
+          errorMessage = `Export failed (${response.status}): ${errorText.substring(0, 100)}`
+        } catch (e) {
+          errorMessage = `Export failed with status ${response.status}`
+        }
+        throw new Error(errorMessage)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December']
+      a.download = `SF2_${exportYear}_${monthNames[exportMonth - 1]}.xls`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      setShowExportDialog(false)
+      alert('SF2 report exported successfully!')
+    } catch (error) {
+      console.error('Export error:', error)
+      alert(`Failed to export SF2 report: ${error.message}`)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  // Generate the SF2 workbook server-side (from the official template) and
+  // open it in the ONLYOFFICE spreadsheet editor.
+  const handleOpenSf2InOnlyOffice = async () => {
+    if (!selectedCourse) {
+      alert('Please select a course first')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const res = await fetch('/api/documents/attendance-sf2/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': getToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          course_id: Number(selectedCourse),
+          month: exportMonth,
+          year: exportYear,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `Generation failed (${res.status})`)
+      }
+
+      const data = await res.json()
+      setOoDocId(data.id)
+      setOoDocTitle(data.title || 'SF2 Attendance Report')
+      setShowExportDialog(false)
+      setShowOOEditor(true)
+    } catch (error) {
+      console.error('Open in ONLYOFFICE failed:', error)
+      alert(`Could not open the SF2 report in ONLYOFFICE: ${error.message}`)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'present':
@@ -201,6 +310,20 @@ export default function Attendance() {
   }
 
   // todayStats + pendingExcuseLetters come from API
+
+  // Full-screen ONLYOFFICE editor for the generated SF2 workbook
+  if (showOOEditor && ooDocId) {
+    return (
+      <OnlyOfficeEditor
+        documentType="attendance-sf2"
+        documentId={ooDocId}
+        title={ooDocTitle}
+        onBack={() => setShowOOEditor(false)}
+        onSaved={() => {}}
+        showChatSidebar={false}
+      />
+    )
+  }
 
   return (
     <div className="flex-1 overflow-auto bg-gray-50 relative">
@@ -356,9 +479,9 @@ export default function Attendance() {
                 <CardTitle>Student Attendance</CardTitle>
                 <CardDescription>Mark attendance and review excuse letters</CardDescription>
               </div>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setShowExportDialog(true)}>
                 <Download className="w-4 h-4" />
-                Export Report
+                Export SF2 Report
               </Button>
             </div>
           </CardHeader>
@@ -732,6 +855,126 @@ export default function Attendance() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* SF2 Export Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export SF2 Attendance Report</DialogTitle>
+            <DialogDescription>
+              Select the month and year to generate the School Form 2 (SF2) Daily Attendance Report
+              in the exact official DepEd format. Open it directly in ONLYOFFICE to edit, or download
+              it as an Excel file.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Month</label>
+              <Select
+                value={String(exportMonth)}
+                onValueChange={(v) => setExportMonth(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Year</label>
+              <Select
+                value={String(exportYear)}
+                onValueChange={(v) => setExportYear(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((year) => (
+                    <SelectItem key={year} value={String(year)}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedCourseInfo && (
+              <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                <p className="text-sm text-blue-900">
+                  <span className="font-medium">Course:</span> {formatCourseLabel(selectedCourseInfo)}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  The report will include attendance data for all students in this course
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowExportDialog(false)}
+              disabled={isExporting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+              onClick={handleOpenSf2InOnlyOffice}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                  Preparing...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Open in ONLYOFFICE
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleExportSF2}
+              disabled={isExporting}
+              className="gap-2"
+            >
+              {isExporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Export SF2
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+  </div>
   )
 }

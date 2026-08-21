@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\LessonPlan;
 use App\Models\ClassRecordDocument;
+use App\Models\AttendanceDocument;
+use App\Models\Course;
 use App\Services\LessonPlanService;
+use App\Services\SF2ExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,15 +22,29 @@ use Illuminate\Support\Str;
  *
  * Endpoints:
  *   GET  /api/documents/{type}/{id}/editor    — return editor config JSON (JWT-signed)
- *   GET  /api/documents/{type}/{id}/content   — serve the raw DOCX/XLSX file
+ *   GET  /api/documents/{type}/{id}/content   — serve the raw DOCX/XLSX/XLS file
  *   POST /api/documents/onlyoffice/callback   — receive save callbacks from ONLYOFFICE
+ *   POST /api/documents/attendance-sf2/generate — build an SF2 workbook for ONLYOFFICE
  */
 class DocumentController extends Controller
 {
     // Supported document types and their ONLYOFFICE documentType mappings
     private const TYPE_MAP = [
-        'lesson-plan'  => ['model' => LessonPlan::class,           'ext' => 'docx', 'ooType' => 'word'],
-        'class-record' => ['model' => ClassRecordDocument::class,  'ext' => 'xlsx', 'ooType' => 'cell'],
+        'lesson-plan' => [
+            'model' => LessonPlan::class, 'ext' => 'docx', 'ooType' => 'word',
+            'path' => 'docx_path', 'version' => 'docx_version', 'dir' => 'lesson-plans',
+            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        'class-record' => [
+            'model' => ClassRecordDocument::class, 'ext' => 'xlsx', 'ooType' => 'cell',
+            'path' => 'xlsx_path', 'version' => 'xlsx_version', 'dir' => 'class-records',
+            'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        'attendance-sf2' => [
+            'model' => AttendanceDocument::class, 'ext' => 'xls', 'ooType' => 'cell',
+            'path' => 'xls_path', 'version' => 'xls_version', 'dir' => 'attendance-sf2',
+            'mime' => 'application/vnd.ms-excel',
+        ],
     ];
 
     // ── POST /api/documents/{type}/upload ────────────────────────────────────
@@ -77,11 +94,82 @@ class DocumentController extends Controller
         ], 201);
     }
 
+    // ── POST /api/documents/attendance-sf2/generate ───────────────────────────
+
+    /**
+     * Build a School Form 2 (SF2) Daily Attendance Report workbook from the
+     * official template and store it for editing in ONLYOFFICE.
+     */
+    public function generateSf2(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'course_id'    => ['required', 'integer'],
+            'month'        => ['required', 'integer', 'min:1', 'max:12'],
+            'year'         => ['required', 'integer', 'min:2020', 'max:2100'],
+            'school_name'  => ['nullable', 'string'],
+            'school_id'    => ['nullable', 'string'],
+            'grade_level'  => ['nullable', 'string'],
+            'adviser_name' => ['nullable', 'string'],
+            'school_head'  => ['nullable', 'string'],
+        ]);
+
+        $course = Course::where('user_id', $user->id)
+            ->where('id', $data['course_id'])
+            ->with('user')
+            ->first();
+
+        if (!$course) {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $monthName = date('F', mktime(0, 0, 0, $data['month'], 1, $data['year']));
+        $syStart = $data['month'] >= 6 ? $data['year'] : $data['year'] - 1;
+
+        $doc = AttendanceDocument::create([
+            'user_id' => $user->id,
+            'course_id' => $course->id,
+            'month' => $data['month'],
+            'year' => $data['year'],
+            'title' => sprintf('SF2 %s %s', trim((string) $course->section), $monthName),
+        ]);
+
+        $config = [
+            'school_name' => $data['school_name'] ?? '',
+            'school_id' => $data['school_id'] ?? '',
+            'grade_level' => $data['grade_level'] ?? '',
+            'adviser_name' => $data['adviser_name'] ?? strtoupper($user->name),
+            'school_head' => $data['school_head'] ?? '',
+        ];
+
+        $path = 'documents/attendance-sf2/' . $doc->id . '.xls';
+        try {
+            Storage::disk('local')->makeDirectory('documents/attendance-sf2');
+            app(SF2ExportService::class)->generate($course, $data['month'], $data['year'], $config, Storage::disk('local')->path($path));
+        } catch (\Throwable $e) {
+            $doc->delete();
+            Log::error('SF2 generation failed', ['course_id' => $course->id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Could not generate the SF2 report.'], 500);
+        }
+
+        $doc->update(['xls_path' => $path]);
+
+        return response()->json([
+            'id'        => $doc->id,
+            'type'      => 'attendance-sf2',
+            'title'     => $doc->title,
+            'extension' => 'xls',
+            'path'      => $path,
+            'version'   => $doc->xls_version,
+        ], 201);
+    }
+
     // ── GET /api/documents/{type}/{id}/editor ─────────────────────────────────
 
     public function editor(Request $request, string $type, int $id): JsonResponse
     {
-        [$model, $ext, $ooType] = $this->resolveType($type);
+        [$model, $ext, $ooType, $pathKey] = $this->resolveType($type);
 
         /** @var LessonPlan $doc */
         $doc = $model::findOrFail($id);
@@ -94,7 +182,7 @@ class DocumentController extends Controller
         }
 
         // Determine the stored file path based on type
-        $filePath = $type === 'class-record' ? $doc->xlsx_path : $doc->docx_path;
+        $filePath = $doc->{$pathKey};
 
         if (!$filePath || !Storage::disk('local')->exists($filePath)) {
             return response()->json(['error' => 'Document file not found on server.'], 404);
@@ -143,7 +231,8 @@ class DocumentController extends Controller
         // Autostart the "insert bridge" plugin (served by this app) that the AI
         // sidebar's "Insert into document" button talks to. Only needed while
         // editing — read-only review mode can't accept insertions anyway.
-        if ($mode === 'edit') {
+        // (The SF2 spreadsheet has no AI-insert flow.)
+        if ($mode === 'edit' && $type !== 'attendance-sf2') {
             $config['editorConfig']['plugins'] = [
                 'autostart'   => [OnlyofficeInsertPluginController::GUID],
                 // Browser-facing URL (the editor iframe fetches this), NOT the
@@ -176,7 +265,7 @@ class DocumentController extends Controller
 
     public function content(Request $request, string $type, int $id): Response
     {
-        [$model, $ext] = $this->resolveType($type);
+        [$model, $ext, , $pathKey, , , $mimeType] = $this->resolveType($type);
 
         /** @var LessonPlan $doc */
         $doc = $model::findOrFail($id);
@@ -189,16 +278,13 @@ class DocumentController extends Controller
             }
         }
 
-        $filePath = $type === 'class-record' ? $doc->xlsx_path : $doc->docx_path;
+        $filePath = $doc->{$pathKey};
 
         if (!$filePath || !Storage::disk('local')->exists($filePath)) {
             abort(404, 'Document file not found.');
         }
 
-        $bytes    = Storage::disk('local')->get($filePath);
-        $mimeType = $ext === 'xlsx'
-            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $bytes = Storage::disk('local')->get($filePath);
 
         return response($bytes, 200, [
             'Content-Type'        => $mimeType,
@@ -257,8 +343,8 @@ class DocumentController extends Controller
             }
 
             try {
-                [$model, $ext] = $this->resolveType($type);
-                /** @var LessonPlan|ClassRecordDocument $doc */
+                [$model, $ext, , $pathKey, $verKey, $dir] = $this->resolveType($type);
+                /** @var LessonPlan|ClassRecordDocument|AttendanceDocument $doc */
                 $doc = $model::findOrFail($id);
 
                 // Download the saved document from ONLYOFFICE
@@ -268,9 +354,7 @@ class DocumentController extends Controller
                     return response()->json(['error' => 1]);
                 }
 
-                $pathKey = $type === 'class-record' ? 'xlsx_path' : 'docx_path';
-                $verKey  = $type === 'class-record' ? 'xlsx_version' : 'docx_version';
-                $path    = 'documents/' . ($type === 'class-record' ? 'class-records' : 'lesson-plans') . '/' . $id . '.' . $ext;
+                $path = 'documents/' . $dir . '/' . $id . '.' . $ext;
 
                 Storage::disk('local')->put($path, $response->body());
 
@@ -299,13 +383,21 @@ class DocumentController extends Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Resolve a document type slug into its TYPE_MAP entry.
+     *
+     * Always returns the full tuple
+     *   [model, ext, ooType, pathKey, versionKey, dir, mime]
+     * so callers can destructure just the prefix they need and skip the rest
+     * with empty slots.
+     */
     private function resolveType(string $type): array
     {
         if (!isset(self::TYPE_MAP[$type])) {
             abort(404, "Unknown document type: {$type}");
         }
         $m = self::TYPE_MAP[$type];
-        return [$m['model'], $m['ext'], $m['ooType']];
+        return [$m['model'], $m['ext'], $m['ooType'], $m['path'], $m['version'], $m['dir'], $m['mime']];
     }
 
     private function authorizeDoc(mixed $doc, string $type = ''): void
