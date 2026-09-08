@@ -663,7 +663,7 @@ export default function ClassRecord() {
     if (grade >= 90) return 'text-green-600'
     if (grade >= 80) return 'text-blue-600'
     if (grade >= 75) return 'text-yellow-600'
-    return 'text-red-600'
+    return 'text-white' // White text for red badges (failing grades)
   }
 
   const getGradeBadgeVariant = (grade) => {
