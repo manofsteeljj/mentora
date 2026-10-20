@@ -12,8 +12,6 @@ import {
   Users,
   FileSpreadsheet,
   CalendarCheck,
-  Upload,
-  Download,
   TableProperties,
   NotebookPen,
 } from 'lucide-react'
@@ -249,49 +247,6 @@ export default function Sidebar({
       </div>
 
       <div className="p-3 border-t border-gray-200 space-y-1">
-        {userRole === 'faculty' && (
-          <div className="mb-3">
-            <div className="px-2 py-1.5">
-              <p className="text-xs font-semibold text-gray-500 uppercase">Student Data</p>
-            </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-green-700 hover:text-green-800 hover:bg-green-50"
-              onClick={() => {
-                document.getElementById('sidebar-excel-upload')?.click()
-              }}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Import Students
-            </Button>
-            <input
-              type="file"
-              id="sidebar-excel-upload"
-              className="hidden"
-              accept=".xlsx, .xls"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file && onUploadStudents) {
-                  onUploadStudents(file)
-                }
-                e.target.value = ''
-              }}
-            />
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-blue-700 hover:text-blue-800 hover:bg-blue-50"
-              onClick={onDownloadStudents}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Students
-            </Button>
-          </div>
-        )}
-
-        {userRole === 'faculty' && <Separator className="my-2" />}
-
         <Button
           variant="ghost"
           className="w-full justify-start"

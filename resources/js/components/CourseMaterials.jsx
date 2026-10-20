@@ -63,6 +63,13 @@ export default function CourseMaterials() {
       return
     }
 
+    // Check file size (10MB = 10 * 1024 * 1024 bytes)
+    const maxSize = 10 * 1024 * 1024
+    if (uploadFile.size > maxSize) {
+      setUploadError(`File is too large (${(uploadFile.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`)
+      return
+    }
+
     setUploading(true)
     setUploadError('')
 
@@ -84,10 +91,12 @@ export default function CourseMaterials() {
 
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
+        console.error('Upload error response:', data)
         const firstValidationError = data?.errors
           ? Object.values(data.errors)?.[0]?.[0]
           : null
-        throw new Error(firstValidationError || data.message || `Upload failed (${resp.status})`)
+        const errorMsg = firstValidationError || data.message || `Upload failed with status ${resp.status}`
+        throw new Error(errorMsg)
       }
 
       setShowUploadModal(false)
@@ -276,7 +285,10 @@ export default function CourseMaterials() {
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                   required
                 />
-                <p className="text-xs text-gray-400 mt-1">PDF, PPTX, DOCX, XLSX, TXT — Max 10MB</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  PDF, PPTX, DOCX, XLSX, TXT — Max 10MB
+                  {uploadFile && ` • Selected: ${(uploadFile.size / 1024 / 1024).toFixed(2)}MB`}
+                </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
