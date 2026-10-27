@@ -14,6 +14,7 @@ import {
   CalendarCheck,
   TableProperties,
   NotebookPen,
+  Download,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -204,6 +205,15 @@ export default function Sidebar({
               >
                 <CalendarCheck className="w-4 h-4 mr-2" />
                 Attendance
+              </Button>
+
+              <Button
+                variant={activeView === 'export-sf1' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('export-sf1')}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export SF1
               </Button>
 
               <Button

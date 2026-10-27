@@ -8,6 +8,7 @@ use App\Models\AttendanceDocument;
 use App\Models\Course;
 use App\Services\LessonPlanService;
 use App\Services\SF2ExportService;
+use App\Services\SF1ExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -162,6 +163,72 @@ class DocumentController extends Controller
             'extension' => 'xls',
             'path'      => $path,
             'version'   => $doc->xls_version,
+        ], 201);
+    }
+
+    // ── POST /api/documents/class-record-sf1/generate ───────────────────────────
+
+    /**
+     * Build a School Form 1 (SF1) School Register workbook and store it for
+     * ONLYOFFICE editing.
+     */
+    public function generateSf1(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'course_id'    => ['required', 'integer'],
+            'school_name'  => ['nullable', 'string'],
+            'school_id'    => ['nullable', 'string'],
+            'region'       => ['nullable', 'string'],
+            'division'     => ['nullable', 'string'],
+            'district'     => ['nullable', 'string'],
+            'grade_level'  => ['nullable', 'string'],
+            'school_year'  => ['nullable', 'string'],
+        ]);
+
+        $course = Course::where('user_id', $user->id)
+            ->where('id', $data['course_id'])
+            ->first();
+
+        if (!$course) {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $doc = ClassRecordDocument::create([
+            'user_id' => $user->id,
+            'title' => sprintf('SF1 %s', trim((string) $course->section)),
+        ]);
+
+        $config = [
+            'school_name' => $data['school_name'] ?? '',
+            'school_id' => $data['school_id'] ?? '',
+            'region' => $data['region'] ?? 'Region I',
+            'division' => $data['division'] ?? 'La Union',
+            'district' => $data['district'] ?? 'Balaoan',
+            'grade_level' => $data['grade_level'] ?? '',
+            'school_year' => $data['school_year'] ?? '',
+        ];
+
+        $path = 'documents/class-records/' . $doc->id . '.xls';
+        try {
+            Storage::disk('local')->makeDirectory('documents/class-records');
+            app(SF1ExportService::class)->generate($course, $config, Storage::disk('local')->path($path));
+        } catch (\Throwable $e) {
+            $doc->delete();
+            Log::error('SF1 generation failed', ['course_id' => $course->id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Could not generate the SF1 report.'], 500);
+        }
+
+        $doc->update(['xlsx_path' => $path]);
+
+        return response()->json([
+            'id'        => $doc->id,
+            'type'      => 'class-record',
+            'title'     => $doc->title,
+            'extension' => 'xls',
+            'path'      => $path,
+            'version'   => $doc->xlsx_version ?? 1,
         ], 201);
     }
 

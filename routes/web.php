@@ -234,6 +234,7 @@ Route::middleware('auth')->group(function () {
     // ONLYOFFICE Document API
     Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');
     Route::post('/api/documents/attendance-sf2/generate',   [DocumentController::class, 'generateSf2']) ->name('api.documents.attendance-sf2.generate');
+    Route::post('/api/documents/class-record-sf1/generate', [DocumentController::class, 'generateSf1']) ->name('api.documents.class-record-sf1.generate');
     Route::get('/api/documents/{type}/{id}/editor',          [DocumentController::class, 'editor'])  ->name('api.documents.editor');
 
     // Attendance API
@@ -241,6 +242,14 @@ Route::middleware('auth')->group(function () {
     Route::put('/api/attendance/records', [AttendanceController::class, 'upsert'])->name('api.attendance.upsert');
     Route::post('/api/attendance/excuse-letters/{excuseLetter}/review', [AttendanceController::class, 'reviewExcuseLetter'])->name('api.attendance.reviewExcuse');
     Route::get('/api/attendance/export-sf2', [AttendanceController::class, 'exportSF2'])->name('api.attendance.export-sf2');
+
+    // Gradebook API
+    Route::get('/api/gradebook/assessments', [GradebookController::class, 'assessmentsIndex'])->name('api.gradebook.assessments.index');
+    Route::post('/api/gradebook/assessments', [GradebookController::class, 'assessmentsStore'])->name('api.gradebook.assessments.store');
+    Route::delete('/api/gradebook/assessments/{assessment}', [GradebookController::class, 'assessmentsDestroy'])->name('api.gradebook.assessments.destroy');
+    Route::get('/api/gradebook/grades', [GradebookController::class, 'gradesIndex'])->name('api.gradebook.grades.index');
+    Route::put('/api/gradebook/grades', [GradebookController::class, 'gradesUpsert'])->name('api.gradebook.grades.upsert');
+    Route::get('/api/gradebook/export-sf1', [GradebookController::class, 'exportSF1'])->name('api.gradebook.export-sf1');
 });
 
 require __DIR__.'/auth.php';

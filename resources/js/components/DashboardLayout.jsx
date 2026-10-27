@@ -23,6 +23,7 @@ const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
 const DepEdImporter = lazy(() => import('./DepEdImporter'))
 const LessonPlanCreator = lazy(() => import('./LessonPlanCreator'))
+const ExportSF1 = lazy(() => import('./ExportSF1'))
 
 function AdminPagePlaceholder({ title }) {
   return (
@@ -273,6 +274,11 @@ export default function DashboardLayout() {
           return <AdminPagePlaceholder title="Attendance" />
         }
         return <Attendance />
+      case 'export-sf1':
+        if (userRole !== 'faculty') {
+          return <AdminPagePlaceholder title="Export SF1" />
+        }
+        return <ExportSF1 />
       case 'students':
         if (userRole !== 'faculty') {
           return <AdminPagePlaceholder title="Students" />
