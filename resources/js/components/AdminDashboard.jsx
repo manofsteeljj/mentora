@@ -96,7 +96,7 @@ export default function AdminDashboard() {
               <div className="text-3xl font-bold text-green-700">{stats.totalStudents}</div>
               <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
-                {stats.activeStudents} active this semester
+                {stats.activeStudents} active this trimester
               </p>
             </CardContent>
           </Card>

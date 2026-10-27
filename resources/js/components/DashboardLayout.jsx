@@ -17,10 +17,13 @@ const AdminStudents = lazy(() => import('./AdminStudents'))
 const AdminCourses = lazy(() => import('./AdminCourses'))
 const AdminMaterials = lazy(() => import('./AdminMaterials'))
 const AdminFaculty = lazy(() => import('./AdminFaculty'))
+const AdminLessonPlans = lazy(() => import('./AdminLessonPlans'))
 const AdminSettings = lazy(() => import('./AdminSettings'))
 const Settings = lazy(() => import('./Settings'))
 const Profile = lazy(() => import('./Profile'))
 const DepEdImporter = lazy(() => import('./DepEdImporter'))
+const LessonPlanCreator = lazy(() => import('./LessonPlanCreator'))
+const ExportSF1 = lazy(() => import('./ExportSF1'))
 
 function AdminPagePlaceholder({ title }) {
   return (
@@ -42,6 +45,7 @@ function getToken() {
 export default function DashboardLayout() {
   const [activeView, setActiveView] = useState('dashboard')
   const [userRole, setUserRole] = useState('faculty')
+  const [pendingLessonPlans, setPendingLessonPlans] = useState(0)
   const [conversations, setConversations] = useState([])
   const [activeConversationId, setActiveConversationId] = useState(null)
   const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState(null)
@@ -65,6 +69,15 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (userRole === 'admin') {
       setActiveView((prev) => (prev === 'dashboard' ? 'admin-dashboard' : prev))
+
+      // Pending lesson plan review count for the sidebar badge
+      fetch('/api/admin/lesson-plans?status=all', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': getToken() },
+        credentials: 'same-origin',
+      })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => setPendingLessonPlans(data?.counts?.pending || 0))
+        .catch(() => {})
       return
     }
 
@@ -170,6 +183,8 @@ export default function DashboardLayout() {
         return <AdminMaterials />
       case 'admin-faculty':
         return <AdminFaculty />
+      case 'admin-lesson-plans':
+        return <AdminLessonPlans onPendingCountChange={setPendingLessonPlans} />
       case 'dashboard':
         return userRole === 'admin' ? <AdminDashboard /> : <Dashboard />
       case 'chat':
@@ -230,6 +245,11 @@ export default function DashboardLayout() {
             }}
           />
         )
+      case 'lesson-plans':
+        if (userRole !== 'faculty') {
+          return <AdminPagePlaceholder title="Lesson Plans" />
+        }
+        return <LessonPlanCreator />
       case 'deped-import':
         if (userRole !== 'faculty') {
           return <AdminPagePlaceholder title="DepEd Import" />
@@ -254,6 +274,11 @@ export default function DashboardLayout() {
           return <AdminPagePlaceholder title="Attendance" />
         }
         return <Attendance />
+      case 'export-sf1':
+        if (userRole !== 'faculty') {
+          return <AdminPagePlaceholder title="Export SF1" />
+        }
+        return <ExportSF1 />
       case 'students':
         if (userRole !== 'faculty') {
           return <AdminPagePlaceholder title="Students" />
@@ -280,6 +305,7 @@ export default function DashboardLayout() {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewConversation}
         userRole={userRole}
+        pendingLessonPlans={pendingLessonPlans}
         onUploadStudents={() => setActiveView('students')}
         onDownloadStudents={() => setActiveView('students')}
       />

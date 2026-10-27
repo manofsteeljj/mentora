@@ -132,7 +132,7 @@ class CourseController extends Controller
                     'students' => (int) ($course->students_count ?? 0),
                     'materials' => (int) ($course->materials_count ?? 0),
                     'section' => (string) ($course->section ?? 'N/A'),
-                    'semester' => (string) ($course->academic_term ?? 'Not set'),
+                    'trimester' => (string) ($course->trimester ?? $course->academic_term ?? 'Not set'),
                     'status' => $status,
                     'startDate' => optional($course->created_at)->toDateString(),
                 ];

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use App\Services\LessonPlanService;
+use App\Services\AI\LLMService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,7 +14,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LLMService::class, fn() => new LLMService());
+        $this->app->singleton(LessonPlanService::class, fn($app) => new LessonPlanService($app->make(LLMService::class)));
     }
 
     /**

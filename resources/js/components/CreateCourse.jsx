@@ -28,7 +28,7 @@ export default function CreateCourse({ onBack, onSave }) {
       time: '',
     },
     maxStudents: 40,
-    semester: '',
+    trimester: '',
     academicYear: '2025-2026',
     syllabus: '',
     gradingSystem: 'percentage',
@@ -39,13 +39,13 @@ export default function CreateCourse({ onBack, onSave }) {
   const [submitError, setSubmitError] = useState(null)
 
   const academicTerm = useMemo(() => {
-    const semLabel =
-      formData.semester === '1st-semester'
-        ? '1st Semester'
-        : formData.semester === '2nd-semester'
-          ? '2nd Semester'
-          : formData.semester === 'summer'
-            ? 'Summer'
+    const trimesterLabel =
+      formData.trimester === '1st-trimester'
+        ? '1st Trimester'
+        : formData.trimester === '2nd-trimester'
+          ? '2nd Trimester'
+          : formData.trimester === '3rd-trimester'
+            ? '3rd Trimester'
             : ''
 
     const scheduleLabel =
@@ -53,10 +53,10 @@ export default function CreateCourse({ onBack, onSave }) {
         ? `${formData.schedule.days} ${formData.schedule.time}`
         : ''
 
-    return [semLabel && formData.academicYear ? `${semLabel} ${formData.academicYear}` : (semLabel || formData.academicYear), scheduleLabel]
+    return [trimesterLabel && formData.academicYear ? `${trimesterLabel} ${formData.academicYear}` : (trimesterLabel || formData.academicYear), scheduleLabel]
       .filter(Boolean)
       .join(' • ')
-  }, [formData.semester, formData.academicYear, formData.schedule.days, formData.schedule.time])
+  }, [formData.trimester, formData.academicYear, formData.schedule.days, formData.schedule.time])
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -99,7 +99,7 @@ export default function CreateCourse({ onBack, onSave }) {
     if (!formData.instructor.trim()) next.instructor = 'Instructor name is required'
     if (!formData.schedule.days) next.schedule = 'Schedule days are required'
     if (!formData.schedule.time) next.schedule = 'Schedule time is required'
-    if (!formData.semester) next.semester = 'Semester is required'
+    if (!formData.trimester) next.trimester = 'Trimester is required'
     if (Number(formData.maxStudents) < 1) next.maxStudents = 'Maximum students must be at least 1'
 
     setErrors(next)
@@ -128,12 +128,14 @@ export default function CreateCourse({ onBack, onSave }) {
           course_name: formData.name,
           description: formData.instructor || formData.description || null,
           academic_term: academicTerm || null,
-          // Keep extra fields in payload for future use; backend may ignore.
+          academic_year: formData.academicYear || null,
+          school_year: formData.academicYear || null,
+          trimester: formData.trimester || null,
           meta: {
             description: formData.description || null,
             maxStudents: Number(formData.maxStudents) || 0,
             academicYear: formData.academicYear || null,
-            semester: formData.semester || null,
+            trimester: formData.trimester || null,
             schedule: formData.schedule,
             syllabus: formData.syllabus || null,
             gradingSystem: formData.gradingSystem || null,
@@ -245,18 +247,18 @@ export default function CreateCourse({ onBack, onSave }) {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="semester">Semester <span className="text-red-500">*</span></Label>
-                  <Select value={formData.semester} onValueChange={(value) => handleInputChange('semester', value)}>
-                    <SelectTrigger className={errors.semester ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select semester" />
+                  <Label htmlFor="trimester">Trimester <span className="text-red-500">*</span></Label>
+                  <Select value={formData.trimester} onValueChange={(value) => handleInputChange('trimester', value)}>
+                    <SelectTrigger className={errors.trimester ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select trimester" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1st-semester">1st Semester</SelectItem>
-                      <SelectItem value="2nd-semester">2nd Semester</SelectItem>
-                      <SelectItem value="summer">Summer</SelectItem>
+                      <SelectItem value="1st-trimester">1st Trimester</SelectItem>
+                      <SelectItem value="2nd-trimester">2nd Trimester</SelectItem>
+                      <SelectItem value="3rd-trimester">3rd Trimester</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.semester && <p className="text-sm text-red-500">{errors.semester}</p>}
+                  {errors.trimester && <p className="text-sm text-red-500">{errors.trimester}</p>}
                 </div>
 
                 <div className="space-y-2">

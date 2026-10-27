@@ -6,8 +6,10 @@ use App\Models\Attendance;
 use App\Models\Course;
 use App\Models\ExcuseLetter;
 use App\Models\Student;
+use App\Services\SF2ExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
@@ -208,5 +210,81 @@ class AttendanceController extends Controller
             'reviewDate' => $excuseLetter->review_date,
             'reviewNotes' => $excuseLetter->review_notes,
         ]);
+    }
+
+    /**
+     * Export School Form 2 (SF2) Daily Attendance Report
+     *
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function exportSF2(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'course_id' => ['required', 'integer'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'school_name' => ['nullable', 'string'],
+            'school_id' => ['nullable', 'string'],
+            'grade_level' => ['nullable', 'string'],
+            'adviser_name' => ['nullable', 'string'],
+            'school_head' => ['nullable', 'string'],
+        ]);
+
+        $course = Course::where('user_id', $user->id)
+            ->where('id', $data['course_id'])
+            ->with('user')
+            ->first();
+
+        if (!$course) {
+            abort(404, 'Course not found');
+        }
+
+        // Values not provided by the request keep whatever the official SF2
+        // template already carries (school name, school ID, school head …).
+        $config = [
+            'school_name' => $data['school_name'] ?? '',
+            'school_id' => $data['school_id'] ?? '',
+            'grade_level' => $data['grade_level'] ?? '',
+            'adviser_name' => $data['adviser_name'] ?? strtoupper($user->name),
+            'school_head' => $data['school_head'] ?? '',
+        ];
+
+        // Generate SF2 Excel file from the official template
+        $sf2Service = new SF2ExportService();
+        $tempFile = $sf2Service->generate($course, $data['month'], $data['year'], $config);
+
+        // Filename follows the reference file: SF2_{SY start}_{Grade}-{Section}_{Month}.xls
+        [$gradeLevel, $section] = $this->splitGradeAndSection($course->section ?? '', $config['grade_level']);
+        $syStart = $data['month'] >= 6 ? $data['year'] : $data['year'] - 1;
+        $monthName = date('F', mktime(0, 0, 0, $data['month'], 1, $data['year']));
+        $fileName = sprintf(
+            'SF2_%d_%s-%s_%s.xls',
+            $syStart,
+            preg_replace('/[^A-Za-z0-9 ]/', '', $gradeLevel ?: 'Grade'),
+            preg_replace('/[^A-Za-z0-9 ]/', '', $section ?: 'Section'),
+            preg_replace('/[^A-Za-z]/', '', $monthName)
+        );
+
+        return response()->download($tempFile, $fileName, [
+            'Content-Type' => 'application/vnd.ms-excel',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Split a course section like "6 - RIZAL" into ["Grade 6", "RIZAL"].
+     * Falls back to the provided grade level and raw section otherwise.
+     */
+    private function splitGradeAndSection(string $section, string $gradeLevel): array
+    {
+        if ($gradeLevel !== '') {
+            return [$gradeLevel, $section];
+        }
+        if (preg_match('/^\s*(\d+)\s*[-–]\s*(.+?)\s*$/', $section, $m)) {
+            return ['Grade ' . $m[1], $m[2]];
+        }
+        return ['', $section];
     }
 }

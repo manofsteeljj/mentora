@@ -12,9 +12,9 @@ import {
   Users,
   FileSpreadsheet,
   CalendarCheck,
-  Upload,
-  Download,
   TableProperties,
+  NotebookPen,
+  Download,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -38,6 +38,7 @@ export default function Sidebar({
   onUploadStudents,
   onDownloadStudents,
   userRole = 'faculty',
+  pendingLessonPlans = 0,
 }) {
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -107,6 +108,20 @@ export default function Sidebar({
               >
                 <Users className="w-4 h-4 mr-2" />
                 Faculty Members
+              </Button>
+
+              <Button
+                variant={activeView === 'admin-lesson-plans' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('admin-lesson-plans')}
+              >
+                <NotebookPen className="w-4 h-4 mr-2" />
+                Lesson Plans
+                {pendingLessonPlans > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                    {pendingLessonPlans}
+                  </span>
+                )}
               </Button>
             </>
           ) : (
@@ -191,6 +206,24 @@ export default function Sidebar({
                 <CalendarCheck className="w-4 h-4 mr-2" />
                 Attendance
               </Button>
+
+              <Button
+                variant={activeView === 'export-sf1' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('export-sf1')}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export SF1
+              </Button>
+
+              <Button
+                variant={activeView === 'lesson-plans' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('lesson-plans')}
+              >
+                <NotebookPen className="w-4 h-4 mr-2" />
+                Lesson Plans
+              </Button>
             </>
           )}
 
@@ -224,49 +257,6 @@ export default function Sidebar({
       </div>
 
       <div className="p-3 border-t border-gray-200 space-y-1">
-        {userRole === 'faculty' && (
-          <div className="mb-3">
-            <div className="px-2 py-1.5">
-              <p className="text-xs font-semibold text-gray-500 uppercase">Student Data</p>
-            </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-green-700 hover:text-green-800 hover:bg-green-50"
-              onClick={() => {
-                document.getElementById('sidebar-excel-upload')?.click()
-              }}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Import Students
-            </Button>
-            <input
-              type="file"
-              id="sidebar-excel-upload"
-              className="hidden"
-              accept=".xlsx, .xls"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file && onUploadStudents) {
-                  onUploadStudents(file)
-                }
-                e.target.value = ''
-              }}
-            />
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-blue-700 hover:text-blue-800 hover:bg-blue-50"
-              onClick={onDownloadStudents}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Students
-            </Button>
-          </div>
-        )}
-
-        {userRole === 'faculty' && <Separator className="my-2" />}
-
         <Button
           variant="ghost"
           className="w-full justify-start"

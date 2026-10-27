@@ -13,6 +13,7 @@ class Student extends Model
         'name',
         'email',
         'photo_url',
+        'gender',
     ];
 
     public function course()

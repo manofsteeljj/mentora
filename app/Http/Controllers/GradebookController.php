@@ -6,6 +6,7 @@ use App\Models\GradebookAssessment;
 use App\Models\GradebookGrade;
 use App\Models\Course;
 use App\Models\Student;
+use App\Services\SF1ExportService;
 use Illuminate\Http\Request;
 class GradebookController extends Controller
 {
@@ -23,7 +24,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
         ]);
 
         $this->assertCourseOwnedByUser($request, (int) $data['course_id']);
@@ -43,7 +44,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'in:quiz,activity,exam,project,assignment'],
@@ -72,7 +73,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period' => ['required', 'string', 'in:1st,2nd,3rd'],
         ]);
 
         $this->assertCourseOwnedByUser($request, (int) $data['course_id']);
@@ -95,7 +96,7 @@ class GradebookController extends Controller
     {
         $data = $request->validate([
             'course_id'                   => ['required', 'integer', 'exists:courses,id'],
-            'grading_period'              => ['required', 'string', 'in:1st,2nd,3rd,4th'],
+            'grading_period'              => ['required', 'string', 'in:1st,2nd,3rd'],
             'grades'                      => ['required', 'array'],
             'grades.*.student_id'         => ['required', 'integer', 'exists:students,id'],
             'grades.*.assessment_id'      => ['required', 'integer', 'exists:gradebook_assessments,id'],
@@ -146,5 +147,76 @@ class GradebookController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Export SF1 (School Register) for a course as Excel download.
+     */
+    public function exportSF1(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'course_id' => ['required', 'integer'],
+            'school_name' => ['nullable', 'string'],
+            'school_id' => ['nullable', 'string'],
+            'region' => ['nullable', 'string'],
+            'division' => ['nullable', 'string'],
+            'district' => ['nullable', 'string'],
+            'grade_level' => ['nullable', 'string'],
+            'school_year' => ['nullable', 'string'],
+        ]);
+
+        $course = Course::where('user_id', $user->id)
+            ->where('id', $data['course_id'])
+            ->first();
+
+        if (!$course) {
+            abort(404, 'Course not found');
+        }
+
+        $config = [
+            'school_name' => $data['school_name'] ?? '',
+            'school_id' => $data['school_id'] ?? '',
+            'region' => $data['region'] ?? 'Region I',
+            'division' => $data['division'] ?? 'La Union',
+            'district' => $data['district'] ?? 'Balaoan',
+            'grade_level' => $data['grade_level'] ?? '',
+            'school_year' => $data['school_year'] ?? '',
+        ];
+
+        // Generate SF1 Excel file from template
+        $sf1Service = new SF1ExportService();
+        $tempFile = $sf1Service->generate($course, $config);
+
+        // Filename: SF1_{SchoolYear}_{Grade}-{Section}.xls
+        [$gradeLevel, $section] = $this->splitGradeAndSection($course->section ?? '', $config['grade_level']);
+        $fileName = sprintf(
+            'SF1_%s_%s-%s.xls',
+            preg_replace('/[^A-Za-z0-9 ]/', '', $config['school_year'] ?: date('Y')),
+            preg_replace('/[^A-Za-z0-9 ]/', '', $gradeLevel ?: 'Grade'),
+            preg_replace('/[^A-Za-z0-9 ]/', '', $section ?: 'Section')
+        );
+
+        return response()->download($tempFile, $fileName, [
+            'Content-Type' => 'application/vnd.ms-excel',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Split a course section like "6 - RIZAL" into ["Grade 6", "RIZAL"].
+     */
+    private function splitGradeAndSection(string $section, string $gradeLevel = ''): array
+    {
+        $gradeLevel = trim($gradeLevel);
+        $section = trim($section);
+
+        if ($gradeLevel !== '') {
+            return [$gradeLevel, $section];
+        }
+        if (preg_match('/^\s*(\d+)\s*[-–]\s*(.+?)\s*$/', $section, $m)) {
+            return ['Grade ' . $m[1], $m[2]];
+        }
+        return ['', $section];
     }
 }

@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Course extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'google_classroom_id',
@@ -16,6 +19,8 @@ class Course extends Model
         'room',
         'status',
         'academic_term',
+        'school_year',
+        'trimester',
         'last_synced_at',
     ];
 

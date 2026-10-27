@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Sparkles, Brain, ClipboardCheck, BarChart3 } 
 import { Button } from './ui/button'
 import logoImage from '../../logo/MENTORA LOGO.png'
 import leafLogoImage from '../../logo/LEAF LOGO MENTORA.png'
-import teacherHeroImage from '../../logo/teacher-hero.svg'
+import teacherHeroImage from '../../logo/viewpoint/teacher with laptopo.webp'
 
 export default function LandingPage(props) {
   const { onGetStarted } = props || {}
@@ -33,9 +33,19 @@ export default function LandingPage(props) {
       icon: Brain,
     },
     {
+      title: 'Assessment Creation',
+      description: 'Create engaging assessments with AI-generated questions aligned to learning objectives.',
+      icon: ClipboardCheck,
+    },
+    {
       title: 'Intelligent Grading System',
       description: 'Use AI-assisted grading with rubric-friendly feedback and quick review workflows.',
-      icon: ClipboardCheck,
+      icon: Sparkles,
+    },
+    {
+      title: 'Student Performance Tracking',
+      description: 'Monitor individual student progress and identify areas that need attention.',
+      icon: BarChart3,
     },
     {
       title: 'Course Analytics & Insights',
@@ -176,23 +186,18 @@ export default function LandingPage(props) {
                   initial={{ x: 30, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ duration: 0.8, delay: 0.15 }}
-                  className="relative min-h-[520px]"
+                  className="relative flex items-center justify-center"
                 >
-                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="absolute h-[220px] w-[260px] right-6 top-8 rounded-full bg-[#233829]" />
-                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, delay: 0.3 }} className="absolute h-[220px] w-[260px] right-10 top-12 rounded-full bg-[#63AD7B]" />
-                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, delay: 0.4 }} className="absolute h-[220px] w-[260px] right-28 top-24 rounded-full bg-[#63AD7B]" />
-                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }} className="absolute h-[220px] w-[260px] right-8 top-44 rounded-full bg-[#233829]" />
-                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, delay: 0.6 }} className="absolute h-[220px] w-[260px] right-14 top-44 rounded-full bg-[#63AD7B]" />
-
                   <motion.div
-                    animate={{ y: [0, -10, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute inset-x-0 bottom-0"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.3 }}
+                    className="relative rounded-2xl overflow-hidden"
                   >
                     <img
                       src={teacherHeroImage}
-                      alt="Teacher hero"
-                      className="w-full max-h-[500px] object-contain drop-shadow-2xl"
+                      alt="Professional educator with laptop"
+                      className="w-full h-auto max-w-[600px] object-cover rounded-2xl shadow-2xl"
                     />
                   </motion.div>
                 </motion.div>
@@ -201,14 +206,24 @@ export default function LandingPage(props) {
 
             <section className="py-16 md:py-20 bg-white">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="grid md:grid-cols-3 gap-6">
+                <motion.div
+                  initial={{ y: 24, opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  viewport={{ once: true, margin: '-80px' }}
+                  transition={{ duration: 0.6 }}
+                  className="text-center mb-12"
+                >
+                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Everything You Need to Excel</h2>
+                  <p className="mt-4 text-lg text-gray-600">Powerful features designed for modern educators</p>
+                </motion.div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {features.map((feature, index) => (
                     <motion.div
                       key={feature.title}
                       initial={{ y: 24, opacity: 0 }}
                       whileInView={{ y: 0, opacity: 1 }}
                       viewport={{ once: true, margin: '-80px' }}
-                      transition={{ duration: 0.5, delay: index * 0.12 }}
+                      transition={{ duration: 0.5, delay: index * 0.1 }}
                       className="rounded-2xl border border-gray-200 bg-gray-50 p-6 hover:shadow-md transition-shadow"
                     >
                       <div className="w-12 h-12 rounded-xl bg-green-100 text-green-700 flex items-center justify-center">

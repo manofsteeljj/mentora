@@ -1,0 +1,595 @@
+=== SHEET 0: school_form_2_ver2014.2.1.1 ===
+Dimensions: A1:AU57
+Default col width: -1
+Default row height: 12.75
+Orientation: landscape | PaperSize: 9
+Margins L/R/T/B: 0.27777777777778/0.27777777777778/0.27777777777778/0.27777777777778
+PrintArea: ''
+--- COLUMN WIDTHS ---
+A => 1.6796875
+B => 1.34375
+C => 14.109375
+D => 8.734375
+E => 0.16796875
+F => 0.83984375
+G => 2.015625
+H => 2.85546875
+I => 2.85546875
+J => 2.85546875
+K => 2.85546875
+L => 2.51953125
+M => 0.3359375
+N => 2.85546875
+O => 2.85546875
+P => 2.85546875
+Q => 2.85546875
+R => 0.83984375
+S => 2.015625
+T => 2.85546875
+U => 2.85546875
+V => 0.671875
+W => 2.18359375
+X => 1.17578125
+Y => 1.6796875
+Z => 1.6796875
+AA => 1.17578125
+AB => 2.85546875
+AC => 2.85546875
+AD => 2.85546875
+AE => 2.85546875
+AF => 2.85546875
+AG => 2.6875
+AH => 0.16796875
+AI => 2.85546875
+AJ => 2.85546875
+AK => 1.17578125
+AL => 1.6796875
+AM => 1.6796875
+AN => 5.0390625
+AO => 5.0390625
+AP => 1.6796875
+AQ => 10.078125
+AR => 3.359375
+AS => 3.359375
+AT => 6.71875
+AU => 0.3359375
+--- ROW HEIGHTS ---
+1 => 30
+2 => 20
+3 => 20
+4 => 20
+5 => 10
+6 => 15
+7 => 15
+8 => 20
+9 => 20
+10 => 20
+11 => 20
+12 => 20
+13 => 20
+14 => 20
+15 => 20
+16 => 20
+17 => 20
+18 => 20
+19 => 20
+20 => 20
+21 => 20
+22 => 20
+23 => 20
+24 => 20
+25 => 10
+26 => 10
+27 => 10
+28 => 5
+29 => 5
+30 => 8
+31 => 2
+32 => 10
+33 => 10
+34 => 10
+35 => 10
+36 => 10
+37 => 10
+38 => 5
+39 => 15
+40 => 21
+41 => 9
+42 => 4
+43 => 6
+44 => 7
+45 => 3
+46 => 10
+47 => 10
+48 => 10
+49 => 10
+50 => 20
+51 => 10
+52 => 10
+53 => 10
+54 => 11
+55 => 9
+56 => 23
+57 => 10
+--- MERGED CELLS ---
+A10:B10
+A11:B11
+A12:B12
+A13:B13
+A14:B14
+A15:B15
+A16:B16
+A17:B17
+A18:B18
+A19:B19
+A1:AU1
+A20:B20
+A21:B21
+A22:B22
+A23:B23
+A24:B24
+A25:X25
+A26:X29
+A2:AU2
+A38:X41
+A3:D3
+A4:D4
+A5:B7
+A8:B8
+A9:B9
+AA3:AG3
+AA4:AG4
+AG10:AH10
+AG11:AH11
+AG12:AH12
+AG13:AH13
+AG14:AH14
+AG15:AH15
+AG16:AH16
+AG17:AH17
+AG18:AH18
+AG19:AH19
+AG20:AH20
+AG21:AH21
+AG22:AH22
+AG23:AH23
+AG24:AH24
+AG6:AH6
+AG7:AH7
+AG8:AH8
+AG9:AH9
+AI4:AL4
+AK10:AL10
+AK11:AL11
+AK12:AL12
+AK13:AL13
+AK14:AL14
+AK15:AL15
+AK16:AL16
+AK17:AL17
+AK18:AL18
+AK19:AL19
+AK20:AL20
+AK21:AL21
+AK22:AL22
+AK23:AL23
+AK24:AL24
+AK6:AL6
+AK7:AL7
+AK8:AL8
+AK9:AL9
+AM10:AN10
+AM11:AN11
+AM12:AN12
+AM13:AN13
+AM14:AN14
+AM15:AN15
+AM16:AN16
+AM17:AN17
+AM18:AN18
+AM19:AN19
+AM20:AN20
+AM21:AN21
+AM22:AN22
+AM23:AN23
+AM24:AN24
+AM25:AO26
+AM27:AQ28
+AM29:AO30
+AM31:AQ32
+AM33:AQ33
+AM34:AQ34
+AM35:AQ35
+AM36:AQ36
+AM37:AQ38
+AM39:AQ39
+AM40:AQ40
+AM41:AQ42
+AM43:AQ44
+AM45:AQ46
+AM48:AU49
+AM4:AU4
+AM54:AU55
+AM5:AP6
+AM7:AN7
+AM8:AN8
+AM9:AN9
+AN50:AU51
+AN52:AU53
+AN56:AT56
+AN57:AU57
+AO10:AP10
+AO11:AP11
+AO12:AP12
+AO13:AP13
+AO14:AP14
+AO15:AP15
+AO16:AP16
+AO17:AP17
+AO18:AP18
+AO19:AP19
+AO20:AP20
+AO21:AP21
+AO22:AP22
+AO23:AP23
+AO24:AP24
+AO7:AP7
+AO8:AP8
+AO9:AP9
+AP25:AQ26
+AP29:AQ30
+AQ10:AU10
+AQ11:AU11
+AQ12:AU12
+AQ13:AU13
+AQ14:AU14
+AQ15:AU15
+AQ16:AU16
+AQ17:AU17
+AQ18:AU18
+AQ19:AU19
+AQ20:AU20
+AQ21:AU21
+AQ22:AU22
+AQ23:AU23
+AQ24:AU24
+AQ5:AU7
+AQ8:AU8
+AQ9:AU9
+AR25:AU25
+AR27:AR28
+AR29:AR32
+AR33:AR34
+AR35:AR36
+AR37:AR38
+AR41:AR42
+AR43:AR44
+AR45:AR46
+AS27:AS28
+AS29:AS32
+AS33:AS34
+AS35:AS36
+AS37:AS38
+AS41:AS42
+AS43:AS44
+AS45:AS46
+AT26:AU26
+AT27:AU28
+AT29:AU32
+AT33:AU34
+AT35:AU36
+AT37:AU38
+AT39:AU39
+AT40:AU40
+AT41:AU42
+AT43:AU44
+AT45:AU46
+B30:F32
+B33:F34
+B35:F36
+B42:X45
+C10:E10
+C11:E11
+C12:E12
+C13:E13
+C14:E14
+C15:E15
+C16:E16
+C17:E17
+C18:E18
+C19:E19
+C20:E20
+C21:E21
+C22:E22
+C23:E23
+C24:E24
+C5:E7
+C8:E8
+C9:E9
+F10:G10
+F11:G11
+F12:G12
+F13:G13
+F14:G14
+F15:G15
+F16:G16
+F17:G17
+F18:G18
+F19:G19
+F20:G20
+F21:G21
+F22:G22
+F23:G23
+F24:G24
+F3:I3
+F4:R4
+F5:AL5
+F6:G6
+F7:G7
+F8:G8
+F9:G9
+G30:S31
+G32:S32
+G33:S33
+G34:S34
+G35:S35
+G36:S36
+J3:L3
+L10:M10
+L11:M11
+L12:M12
+L13:M13
+L14:M14
+L15:M15
+L16:M16
+L17:M17
+L18:M18
+L19:M19
+L20:M20
+L21:M21
+L22:M22
+L23:M23
+L24:M24
+L6:M6
+L7:M7
+L8:M8
+L9:M9
+M3:R3
+R10:S10
+R11:S11
+R12:S12
+R13:S13
+R14:S14
+R15:S15
+R16:S16
+R17:S17
+R18:S18
+R19:S19
+R20:S20
+R21:S21
+R22:S22
+R23:S23
+R24:S24
+R6:S6
+R7:S7
+R8:S8
+R9:S9
+S3:Z3
+S4:Z4
+T30:V32
+T35:V36
+V10:W10
+V11:W11
+V12:W12
+V13:W13
+V14:W14
+V15:W15
+V16:W16
+V17:W17
+V18:W18
+V19:W19
+V20:W20
+V21:W21
+V22:W22
+V23:W23
+V24:W24
+V6:W6
+V7:W7
+V8:W8
+V9:W9
+X10:Y10
+X11:Y11
+X12:Y12
+X13:Y13
+X14:Y14
+X15:Y15
+X16:Y16
+X17:Y17
+X18:Y18
+X19:Y19
+X20:Y20
+X21:Y21
+X22:Y22
+X23:Y23
+X24:Y24
+X6:Y6
+X7:Y7
+X8:Y8
+X9:Y9
+Z10:AA10
+Z11:AA11
+Z12:AA12
+Z13:AA13
+Z14:AA14
+Z15:AA15
+Z16:AA16
+Z17:AA17
+Z18:AA18
+Z19:AA19
+Z20:AA20
+Z21:AA21
+Z22:AA22
+Z23:AA23
+Z24:AA24
+Z25:AK25
+Z26:AK27
+Z28:AK29
+Z30:AK31
+Z32:AK35
+Z36:AK36
+Z37:AK41
+Z42:AK43
+Z44:AK47
+Z48:AK48
+Z49:AK50
+Z51:AK51
+Z52:AK52
+Z53:AK54
+Z57:AK57
+Z6:AA6
+Z7:AA7
+Z8:AA8
+Z9:AA9
+--- CELL DATA (non-empty) ---
+MaxRow: 57 MaxCol: AU
+A1: School Form 2 (SF2) Daily Attendance Report of Learners
+A2: (This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)
+A3: School ID 
+F3: 100882
+J3: School Year 
+M3: 2026 - 2027
+S3: Report for the Month of
+A4: Name of School
+F4: Masupe Elementary School
+S4: Grade Level
+AA4: Grade 6
+AI4: Section 
+AM4: RIZAL
+A5: No.
+C5: NAME\n(Last Name, First Name, Middle Name)
+F5: (1st row for date)
+AM5: Total for the Month
+AQ5: REMARKS (If DROPPED OUT, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)
+F7: M
+H7: T
+I7: W
+J7: TH
+K7: F
+L7: M
+N7: T
+O7: W
+P7: TH
+Q7: F
+R7: M
+T7: T
+U7: W
+V7: TH
+X7: F
+Z7: M
+AB7: T
+AC7: W
+AD7: TH
+AE7: F
+AF7: M
+AG7: T
+AI7: W
+AJ7: TH
+AK7: F
+AM7: ABSENT
+AO7: PRESENT
+A8: 1
+C8: DAVID,LUKE THEO, ORDINARIO
+A9: 2
+C9: ESPAÑOL,MARK JOSEPH, ALMAZAN
+A10: 3
+C10: MINA,KYRIE ERVIN, PUZON
+A11: 4
+C11: NIMER,LOUIE JEFF, OLIDAN
+A12: 5
+C12: PARAS,ZHIANE DREY, NERONA
+A13: 6
+C13: RAMOS,MARK ZED, LEAL
+A14: 7
+C14: VILLANUEVA,ALDRIN, ELIAS
+A15: 7
+C15: <=== MALE | TOTAL Per Day ===>
+A16: 1
+C16: ALVARO,SHANE JOY, CURTINA
+A17: 2
+C17: OLBINADO,JAMAICA, DELPINO
+A18: 3
+C18: OLBINADO,MARIANE, SOMERA
+A19: 4
+C19: ORDINARIO,ZOE JHADE, NUVAL
+A20: 5
+C20: OSOTEO,FRANCIS DANNA JANE, BULAN
+A21: 6
+C21: TAGOLAO,ATHENA MAE, NATURA
+A22: 7
+C22: URBI,ASHLEY JOY, CASTAÑEDA
+A23: 7
+C23: <=== FEMALE | TOTAL Per Day ===>
+A24: 14
+C24: Combined TOTAL Per Day
+A25: GUIDELINES:
+Z25: 1. CODES FOR CHECKING ATTENDANCE
+AM25: Month :
+AP25: No. of Days of Classes:
+AR25: Summary
+A26: 1. The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.\n2. Dates shall be written in the columns after Learner's Name.\n3. To compute the following:
+Z26: (blank) - Present; (x)- Absent; Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)
+AR26: M
+AS26: F
+AT26: TOTAL
+AM27: * Enrolment as of (1st Friday of June)
+AR27: 7
+AS27: 7
+AT27: 14
+Z28: 2. REASONS/CAUSES FOR NLS
+AM29: Late enrolment 
+AP29: during the month
+AR29: 0
+AS29: 0
+AT29: 0
+B30: a. Percentage of Enrolment =
+G30: Registered Learners as of end of the month
+T30: x 100
+Z30: a. Domestic-Related Factors
+AM31: (beyond cut-off)
+G32: Enrolment as of 1st Friday of the school year
+Z32: a.1. Had to take care of siblings\na.2. Early marriage/pregnancy\na.3. Parents' attitude toward schooling\na.4. Family problems
+B33: b. Average Daily Attendance =
+G33: Total Daily Attendance
+AM33: Registered Learners as of
+G34: Number of School Days in reporting month
+AM34: end of month
+B35: c. Percentage of Attendance for the month =
+G35: Average daily attendance
+T35: x 100
+AM35: Percentage of Enrolment as of
+G36: Registered Learners as of end of the month
+Z36: b. Individual-Related Factors
+AM36: end of month
+Z37: b.1. Illness\nb.2. Overage\nb.3. Death\nb.4. Drug Abuse\nb.5. Poor academic performance\nb.6. Lack of interest/Distractions\nb.7. Hunger/Malnutrition
+AM37: Average Daily Attendance
+A38: 4. Every end of the month, the class adviser will submit this form to the office of the principal for recording of summary table into School Form 4. Once signed by the principal, this form should be returned to the adviser.\n5. The adviser will provide neccessary interventions including but not limited to home visitation to learner/s who were absent for 5 consecutive days and/or those at risk of dropping out.\n6.  Attendance performance of learners will be reflected in Form 137 and Form 138 every grading period.
+AM39: Percentage of Attendance for the month
+AM40: Number of students absent for 5 consecutive days
+AM41: Dropped out
+B42: *Beginning of School Year cut-off report is every 1st Friday of the School Year
+Z42: c. School-Related Factors
+AM43: Transferred out
+Z44: c.1. Teacher Factor\nc.2. Physical condition of classroom\nc.3. Peer influence
+AM45: Transferred in
+Z48: d. Geographic/Environmental
+AM48: I certify that this is a true and correct report.
+Z49: d.1. Distance between home and school\nd.2. Armed conflict (incl. Tribal wars & clanfeuds)\nd.3. Calamities/Disasters
+AN50: ROSEL ELEGORES SANCHEZ
+Z51: e. Financial-Related
+Z52: e.1. Child labor, work
+AN52: (Signature of Adviser over Printed Name)
+Z53: f. Others (Specify)
+AM54: Attested by:
+AN56: ROMELYN OAYAS OBALLES
+Z57: Generated thru LIS
+AN57: (Signature of School Head over Printed Name)

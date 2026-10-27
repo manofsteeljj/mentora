@@ -24,6 +24,7 @@ class ChatController extends Controller
             'message'         => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'course_id'       => 'nullable|integer|exists:courses,id',
+            'material_id'     => 'nullable|integer|exists:materials,id',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -35,6 +36,7 @@ class ChatController extends Controller
         $userMessage    = $request->input('message');
         $conversationId = $request->input('conversation_id');
         $courseId        = $request->input('course_id');
+        $materialId      = $request->input('material_id');
 
         $isNewConversation = false;
 
@@ -75,9 +77,23 @@ class ChatController extends Controller
         }
 
         // ── RAG: Retrieve relevant materials ──────────────────────────────
-        $ragResult   = $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
-        $ragContext   = $ragResult['context'];
-        $ragSources   = $ragResult['sources'];
+        // When the user attached a specific material (the "+" picker), focus
+        // the context on that material for this message instead of scoring.
+        $attachedMaterial = $materialId
+            ? Material::where('id', $materialId)
+                ->whereHas('course', function ($q) {
+                    $q->where('user_id', Auth::id());
+                })
+                ->with('course:id,course_code,course_name')
+                ->first()
+            : null;
+
+        $ragResult = $attachedMaterial
+            ? $this->buildAttachedMaterialContext($attachedMaterial)
+            : $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
+
+        $ragContext = $ragResult['context'];
+        $ragSources = $ragResult['sources'];
 
         $systemPrompt = "You are Mentora, a helpful AI teaching assistant for college educators. "
             . "You help with lesson planning, quiz generation, grading assistance, assignment creation, "
@@ -102,6 +118,11 @@ class ChatController extends Controller
                 . "Ground your responses in this material. If the question cannot be answered from the materials, "
                 . "say so and provide general knowledge as a supplement.\n\n"
                 . "=== COURSE MATERIALS ===\n" . $ragContext . "\n=== END MATERIALS ===";
+
+            if ($attachedMaterial) {
+                $systemPrompt .= "\n\nATTACHED MATERIAL: The user specifically attached \"{$attachedMaterial->title}\" "
+                    . "to this message. Focus your answer on that material for this message only.";
+            }
         }
 
         if ($preferAllMaterials && $ragContext) {
@@ -161,7 +182,7 @@ class ChatController extends Controller
                     ['role' => 'user', 'content' => $userPrompt],
                 ],
                 'temperature' => 0.7,
-                'max_tokens' => 2048,
+                'max_tokens' => 4096,
             ];
         } else {
             $baseUrl = rtrim(env('LOCAL_AI_URL', 'http://localhost:11434'), '/');
@@ -174,7 +195,7 @@ class ChatController extends Controller
                 'stream' => false,
                 'options' => [
                     'temperature' => 0.7,
-                    'num_predict' => 2048,
+                    'num_predict' => 4096,
                 ],
             ];
         }
@@ -217,7 +238,15 @@ class ChatController extends Controller
             ], 200);
         }
 
-        $responseText = $this->extractResponse($resp);
+        [$responseText, $isTruncated] = $this->extractResponse($resp);
+
+        if (trim($responseText) === '') {
+            $responseText = 'The AI provider returned an empty response. Please try again.';
+        }
+
+        if ($isTruncated) {
+            $responseText .= "\n\n---\n*The model hit its output token limit before finishing — this answer may be incomplete. Try asking for a more concise reply.*";
+        }
 
         // Save to database. If persistence fails, still return the generated answer.
         try {
@@ -360,6 +389,37 @@ class ChatController extends Controller
         $fileName = $safeTitle . '.docx';
 
         return response()->download($tempFile, $fileName)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Build the RAG context for a single attached material (the "+" picker in
+     * the chat UIs). The response should focus on this material only.
+     */
+    private function buildAttachedMaterialContext(Material $material): array
+    {
+        $text  = $this->buildMaterialSearchText($material);
+        $limit = 9000;
+
+        $chunk = mb_strlen($text) > $limit
+            ? mb_substr($text, 0, $limit) . '...'
+            : $text;
+
+        $courseLabel = $material->course
+            ? "{$material->course->course_code} - {$material->course->course_name}"
+            : 'Unknown Course';
+
+        return [
+            'context' => "[Source: {$material->title} | Course: {$courseLabel}]\n{$chunk}",
+            'sources' => [
+                [
+                    'id'       => $material->id,
+                    'title'    => $material->title,
+                    'course'   => $courseLabel,
+                    'score'    => 0,
+                    'has_text' => !empty($material->extracted_text),
+                ],
+            ],
+        ];
     }
 
     /**
@@ -743,8 +803,10 @@ class ChatController extends Controller
 
     /**
      * Extract the response text from provider HTTP responses.
+     * Returns [text, truncated] — truncated is true when the model ran out of
+     * output tokens before finishing its answer.
      */
-    private function extractResponse($resp): string
+    private function extractResponse($resp): array
     {
         $raw  = (string) $resp->body();
         $body = null;
@@ -755,14 +817,30 @@ class ChatController extends Controller
             $body = null;
         }
 
+        // Ollama-style {"response": "..."}
         if (is_array($body) && isset($body['response'])) {
-            return trim($body['response']);
+            return [$this->stripReasoningTags((string) $body['response']), false];
         }
 
-        if (is_array($body) && isset($body['choices'][0]['message']['content'])) {
-            return trim($body['choices'][0]['message']['content']);
+        // OpenAI / OpenRouter-style choices payload
+        if (is_array($body) && isset($body['choices'][0]['message'])) {
+            $message = $body['choices'][0]['message'];
+            $content = trim((string) ($message['content'] ?? ''));
+
+            // Reasoning models (e.g. minimax-m3) can exhaust the token budget
+            // while thinking, leaving content null and the draft answer inside
+            // the "reasoning" field. Fall back to it so the user still gets a reply.
+            if ($content === '') {
+                $content = trim((string) ($message['reasoning'] ?? ''));
+            }
+
+            if ($content !== '') {
+                $truncated = ($body['choices'][0]['finish_reason'] ?? '') === 'length';
+                return [$this->stripReasoningTags($content), $truncated];
+            }
         }
 
+        // NDJSON / streaming-style fallback (line by line)
         if ($raw) {
             $collected = '';
             $lines = preg_split('/\r?\n/', $raw);
@@ -787,11 +865,40 @@ class ChatController extends Controller
             }
             $collected = trim($collected);
             if ($collected !== '') {
-                return $collected;
+                return [$collected, false];
             }
         }
 
-        return $raw ?: 'No response received from AI model.';
+        // Unrecognised JSON body — never dump the raw payload at the user.
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $msg = $decoded['error']['message'] ?? $decoded['message'] ?? null;
+                if (is_string($msg) && trim($msg) !== '') {
+                    return [trim($msg), false];
+                }
+                return ['The AI provider returned a response in an unexpected format.', false];
+            }
+            return [$raw, false];
+        }
+
+        return ['No response received from AI model.', false];
+    }
+
+    /**
+     * Some reasoning models inline their chain of thought inside <think>…</think>
+     * tags in the content itself. Strip those blocks, keeping the final answer.
+     */
+    private function stripReasoningTags(string $text): string
+    {
+        $text = preg_replace('/<think>[\s\S]*?<\/think>/i', '', $text) ?? $text;
+
+        // Unterminated <think> block (response was cut off mid-thought): drop the rest.
+        if (stripos($text, '<think>') !== false) {
+            $text = preg_replace('/<think>[\s\S]*$/i', '', $text) ?? $text;
+        }
+
+        return trim($text);
     }
 
     private function createDocxFromLines(array $lines): string

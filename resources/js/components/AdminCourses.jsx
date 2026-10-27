@@ -96,7 +96,7 @@ export default function AdminCourses() {
       Section: c.section,
       Students: c.students,
       Materials: c.materials,
-      Semester: c.semester,
+      Trimester: c.trimester || c.semester || 'Not set',
       Status: c.status,
       'Start Date': c.startDate,
     }))
@@ -301,8 +301,8 @@ export default function AdminCourses() {
                       <div className="pt-3 border-t border-gray-200 space-y-2 text-sm">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-600">Semester:</span>
-                          <span className="font-medium">{course.semester}</span>
+                          <span className="text-gray-600">Trimester:</span>
+                          <span className="font-medium">{course.trimester || course.semester || 'Not set'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-gray-400" />

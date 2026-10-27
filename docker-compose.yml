@@ -1,49 +1,96 @@
 services:
+
+  # ── PHP-FPM application ────────────────────────────────────────────────────
   app:
-    image: php:8.3-fpm
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
     container_name: mentora_app
     working_dir: /var/www
     volumes:
       - ./:/var/www
+      # Persist uploaded materials between restarts
+      - storage_public:/var/www/storage/app/public
+    environment:
+      APP_ENV:  local
+      APP_DEBUG: "true"
+      APP_URL:   http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST:       db
+      DB_PORT:       3306
+      DB_DATABASE:   mentora
+      DB_USERNAME:   mentora
+      DB_PASSWORD:   mentora_secret
+      CACHE_STORE:   database
+      SESSION_DRIVER: database
+      QUEUE_CONNECTION: database
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - mentora
-    build: 
-      context: .
-      dockerfile: docker/app/Dockerfile 
+    # Install composer deps and run migrations on first start
+    command: >
+      sh -c "
+        composer install --no-interaction --prefer-dist --optimize-autoloader &&
+        php artisan key:generate --no-interaction --force 2>/dev/null || true &&
+        php artisan migrate --force &&
+        php artisan storage:link --force 2>/dev/null || true &&
+        php-fpm
+      "
 
+  # ── Nginx web server ───────────────────────────────────────────────────────
   web:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: mentora_web
     ports:
       - "8000:80"
     volumes:
       - ./:/var/www
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - storage_public:/var/www/storage/app/public
     depends_on:
       - app
     networks:
       - mentora
 
+  # ── MySQL 8 database ───────────────────────────────────────────────────────
   db:
-    image: mysql:8
+    image: mysql:8.0
     container_name: mentora_db
-    restart: always
+    restart: unless-stopped
     environment:
-      MYSQL_DATABASE: mentora
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_PASSWORD: root
-      MYSQL_USER: mentora
+      MYSQL_DATABASE:      mentora
+      MYSQL_USER:          mentora
+      MYSQL_PASSWORD:      mentora_secret
+      MYSQL_ROOT_PASSWORD: root_secret
     ports:
       - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
     networks:
       - mentora
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mentora", "-pmentora_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Asset builder (runs once then exits) ───────────────────────────────────
+  # Run: docker compose run --rm assets
+  assets:
+    image: node:20-alpine
+    container_name: mentora_assets
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: sh -c "npm ci && npm run build"
+    profiles:
+      - build
 
 volumes:
   dbdata:
+  storage_public:
 
 networks:
   mentora:

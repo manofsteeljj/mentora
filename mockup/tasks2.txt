@@ -1,0 +1,768 @@
+# Kiro Task: Integrate ONLYOFFICE Docs Community Edition into Mentora
+
+## Project
+
+Mentora is an existing Laravel + React web application.
+
+Current architecture:
+
+- Backend: Laravel
+- Frontend: React + Vite
+- Database: MySQL/MariaDB
+- Authentication: Laravel Sanctum
+- Deployment/development: Docker
+- Document formats required:
+  - DOCX for Lesson Plans
+  - XLSX for Class Records
+
+ONLYOFFICE Docs Community Edition has ALREADY been installed and is currently running in Docker.
+
+ONLYOFFICE URL during local development:
+
+http://localhost:8080
+
+The ONLYOFFICE health check currently returns HTTP 200 with:
+
+true
+
+Therefore:
+
+IMPORTANT:
+- DO NOT reinstall ONLYOFFICE.
+- DO NOT create another ONLYOFFICE container.
+- DO NOT replace the existing Docker configuration unless necessary.
+- Inspect the existing project before making changes.
+- Integrate ONLYOFFICE into the existing Mentora architecture.
+
+Official documentation:
+
+ONLYOFFICE React:
+https://api.onlyoffice.com/docs/docs-api/get-started/frontend-frameworks/react/
+
+ONLYOFFICE Docker:
+https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx
+
+ONLYOFFICE API:
+https://api.onlyoffice.com/docs/docs-api/
+
+---
+
+# PRIMARY GOAL
+
+Implement an embedded ONLYOFFICE document editor inside the Mentora React frontend.
+
+The final workflow should be:
+
+Teacher
+↓
+Mentora
+↓
+Open Lesson Plan
+↓
+ONLYOFFICE DOCX Editor appears INSIDE Mentora
+↓
+Teacher edits document
+↓
+Teacher saves
+↓
+ONLYOFFICE callback
+↓
+Laravel
+↓
+Updated DOCX stored
+
+The same architecture must support XLSX:
+
+Teacher
+↓
+Mentora Class Records
+↓
+Open Class Record
+↓
+ONLYOFFICE Spreadsheet Editor
+↓
+Teacher edits XLSX
+↓
+Save
+↓
+Laravel stores updated XLSX
+
+---
+
+# PHASE 1 — INSPECT THE EXISTING PROJECT
+
+Before changing anything, inspect the project.
+
+Identify:
+
+1. Laravel project structure.
+2. React project structure.
+3. Existing Docker configuration.
+4. Existing authentication.
+5. Existing document/file upload system.
+6. Existing Lesson Plan functionality.
+7. Existing Class Record functionality.
+8. Existing XLSX export functionality.
+9. Existing database models related to:
+   - documents
+   - lesson plans
+   - class records
+   - users
+10. Existing storage configuration.
+11. Existing API conventions.
+12. Existing React routing.
+13. Existing Axios configuration.
+14. Existing UI component conventions.
+
+Do NOT create duplicate systems if equivalent functionality already exists.
+
+After inspection, provide a short implementation plan listing the files that need to be changed.
+
+Do not modify unrelated files.
+
+---
+
+# PHASE 2 — INSTALL REACT ONLYOFFICE PACKAGE
+
+Check whether the package already exists.
+
+If it does not exist, install:
+
+@onlyoffice/document-editor-react
+
+Do not install multiple ONLYOFFICE React libraries.
+
+Use the official React integration.
+
+---
+
+# PHASE 3 — ENVIRONMENT CONFIGURATION
+
+The ONLYOFFICE server is already running at:
+
+http://localhost:8080
+
+Create an environment variable for the frontend:
+
+VITE_ONLYOFFICE_URL=http://localhost:8080
+
+Do not hardcode:
+
+http://localhost:8080
+
+throughout the React application.
+
+For Laravel, use an appropriate configuration variable for the ONLYOFFICE server URL.
+
+Example:
+
+ONLYOFFICE_URL=http://onlyoffice
+
+or the appropriate URL based on the existing Docker network.
+
+IMPORTANT:
+
+The JWT secret must NEVER be exposed to React.
+
+Only Laravel/backend code may access:
+
+ONLYOFFICE_JWT_SECRET
+
+If the existing ONLYOFFICE Docker configuration already uses a JWT secret, reuse it rather than creating a second secret.
+
+---
+
+# PHASE 4 — CREATE REUSABLE ONLYOFFICE REACT COMPONENT
+
+Create a reusable component according to the existing project structure.
+
+Suggested:
+
+src/components/documents/OnlyOfficeEditor.jsx
+
+or use the project's existing component structure.
+
+The component should accept a document ID.
+
+Example:
+
+<OnlyOfficeEditor documentId={document.id} />
+
+The component should:
+
+1. Request the editor configuration from Laravel.
+2. Receive the document metadata/configuration.
+3. Initialize ONLYOFFICE.
+4. Display the editor inside the Mentora UI.
+5. Support DOCX.
+6. Support XLSX.
+7. Support edit mode.
+8. Support view mode if needed.
+9. Pass the authenticated user's information to ONLYOFFICE.
+10. Handle editor errors gracefully.
+11. Display a loading state.
+12. Display a useful error message if ONLYOFFICE is unavailable.
+
+Do not expose the JWT secret to the frontend.
+
+---
+
+# PHASE 5 — LARAVEL DOCUMENT EDITOR API
+
+Implement or extend the existing Laravel document API.
+
+Use routes following the existing Mentora API conventions.
+
+Suggested endpoints:
+
+GET /api/documents/{document}/editor
+
+GET /api/documents/{document}/content
+
+POST /api/documents/onlyoffice/callback
+
+Use existing authentication middleware.
+
+The editor configuration endpoint should return information such as:
+
+{
+    "id": "...",
+    "filename": "...",
+    "extension": "docx",
+    "documentType": "word",
+    "key": "...",
+    "url": "...",
+    "callbackUrl": "...",
+    "user": {
+        "id": "...",
+        "name": "..."
+    }
+}
+
+For XLSX:
+
+documentType should be:
+
+cell
+
+For DOCX:
+
+documentType should be:
+
+word
+
+Follow the current ONLYOFFICE API specification rather than blindly copying old examples.
+
+---
+
+# PHASE 6 — DOCUMENT AUTHORIZATION
+
+This is a school system containing academic records.
+
+NEVER allow users to access arbitrary documents by changing:
+
+/documents/{id}
+
+Implement authorization.
+
+For example:
+
+User A owns document 123.
+
+User B attempts:
+
+GET /api/documents/123/editor
+
+User B must receive:
+
+403 Forbidden
+
+unless the application's authorization rules explicitly allow access.
+
+Reuse existing Laravel Policies/Gates if available.
+
+Do not create a second authorization system if one already exists.
+
+---
+
+# PHASE 7 — DOCUMENT CONTENT ENDPOINT
+
+ONLYOFFICE must be able to retrieve the actual document.
+
+Implement:
+
+GET /api/documents/{document}/content
+
+The endpoint should:
+
+1. Verify the document exists.
+2. Verify access/authorization.
+3. Retrieve the file from Laravel storage.
+4. Return the correct MIME type.
+5. Return the actual DOCX/XLSX content.
+
+DOCX MIME type:
+
+application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+XLSX MIME type:
+
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+Do not expose the entire Laravel storage directory publicly.
+
+Do not create unrestricted file download routes.
+
+---
+
+# PHASE 8 — ONLYOFFICE CALLBACK
+
+Implement the ONLYOFFICE callback endpoint:
+
+POST /api/documents/onlyoffice/callback
+
+The callback must:
+
+1. Receive the ONLYOFFICE callback.
+2. Validate the request according to the current ONLYOFFICE JWT configuration.
+3. Determine which Mentora document is being updated.
+4. Correctly interpret ONLYOFFICE callback statuses.
+5. When the document is ready to be saved, retrieve the updated document from the URL supplied by ONLYOFFICE.
+6. Save the updated file to Laravel storage.
+7. Update the document metadata/version.
+8. Return the response expected by ONLYOFFICE.
+
+Do NOT blindly save every callback.
+
+Use the official ONLYOFFICE callback documentation.
+
+Add logging for callback failures.
+
+DO NOT log:
+- student grades
+- student names
+- document contents
+- JWT secrets
+- sensitive academic data
+
+---
+
+# PHASE 9 — DOCUMENT KEY / VERSIONING
+
+ONLYOFFICE requires a document key.
+
+Do NOT generate a completely random key every time the editor loads.
+
+The key should identify a particular document version.
+
+For example, conceptually:
+
+document-{id}-{version}
+
+or:
+
+document-{id}-{updated_at_timestamp}
+
+Use an approach compatible with the existing database structure.
+
+When a document is successfully updated:
+
+- update its version/update timestamp
+- generate a new document key for the next editing session
+
+Avoid stale document sessions overwriting newer documents where practical.
+
+---
+
+# PHASE 10 — LESSON PLAN INTEGRATION
+
+Integrate ONLYOFFICE into the existing Mentora Lesson Plan workflow.
+
+Existing conceptual workflow:
+
+Teacher
+↓
+Enter lesson plan requirements
+↓
+Mentora RAG/LLM
+↓
+Generate lesson plan
+↓
+Create DOCX
+↓
+Store DOCX
+↓
+Open DOCX in ONLYOFFICE
+↓
+Teacher reviews and edits
+↓
+Teacher validates AI-generated content
+↓
+Save updated DOCX
+
+IMPORTANT:
+
+Do NOT remove or replace the existing LLM/RAG functionality.
+
+ONLYOFFICE is the editing/validation layer.
+
+The generated AI content must remain editable by the teacher.
+
+This supports the project's human-validation requirement.
+
+---
+
+# PHASE 11 — CLASS RECORD XLSX INTEGRATION
+
+Integrate ONLYOFFICE into the existing Class Record functionality.
+
+Existing conceptual workflow:
+
+Teacher
+↓
+Class Record
+↓
+Generate/open XLSX
+↓
+ONLYOFFICE Spreadsheet Editor
+↓
+Teacher edits class record
+↓
+Save
+↓
+Laravel storage
+
+The existing XLSX export functionality must NOT be removed.
+
+ONLYOFFICE should provide an additional editing/viewing workflow.
+
+Preserve the existing DepEd/E-Class Record XLSX formatting and export logic.
+
+Do not rewrite the existing class-record generator unless required for compatibility.
+
+---
+
+# PHASE 12 — UI INTEGRATION
+
+The editor should appear naturally inside Mentora.
+
+For example:
+
+/lesson-plans/{id}/edit
+
+or the project's existing route.
+
+Expected UI:
+
+Mentora navigation/header
+↓
+Document title
+↓
+ONLYOFFICE editor
+↓
+Full document editing area
+
+Do not redirect users to:
+
+localhost:8080
+
+The ONLYOFFICE editor must be embedded inside the React application.
+
+The teacher should perceive it as part of Mentora.
+
+Add:
+
+- Loading state
+- Error state
+- Back button
+- Document title
+- Save/status indicator if appropriate
+
+Do not build a custom Word/Excel toolbar.
+
+ONLYOFFICE provides the document editing interface.
+
+---
+
+# PHASE 13 — DOCX TEST FIRST
+
+Before connecting the AI lesson-plan system:
+
+Create a simple test DOCX.
+
+Test:
+
+1. Open DOCX.
+2. Display inside React.
+3. Type text.
+4. Change formatting.
+5. Save.
+6. Close.
+7. Reopen.
+8. Verify the changes persisted.
+
+Do not proceed to XLSX until DOCX editing and saving works.
+
+---
+
+# PHASE 14 — XLSX TEST
+
+After DOCX works:
+
+1. Open existing XLSX.
+2. Display inside React.
+3. Edit a cell.
+4. Edit formatting.
+5. Save.
+6. Close.
+7. Reopen.
+8. Verify changes persisted.
+
+Do not break existing XLSX export functionality.
+
+---
+
+# PHASE 15 — SECURITY REQUIREMENTS
+
+The implementation must include:
+
+- Laravel authentication
+- Document authorization
+- ONLYOFFICE JWT
+- No JWT secret in React
+- No unrestricted document download
+- File type validation
+- Document ownership/access checks
+- Secure callback handling
+- Existing Sanctum authentication
+- HTTPS-ready configuration
+
+Do not disable JWT to make development easier.
+
+Do not make private academic documents publicly accessible.
+
+---
+
+# PHASE 16 — ERROR HANDLING
+
+React should gracefully handle:
+
+1. ONLYOFFICE unavailable
+2. Document missing
+3. Unauthorized document
+4. Invalid document
+5. Callback failure
+6. Network failure
+7. Unsupported file type
+
+Display human-readable messages.
+
+Do not expose stack traces or secrets to users.
+
+---
+
+# PHASE 17 — TESTING
+
+Test the following.
+
+## Test A — ONLYOFFICE
+
+Verify:
+
+http://localhost:8080
+
+is accessible.
+
+Health check:
+
+GET /healthcheck
+
+must return:
+
+true
+
+Do not modify the existing ONLYOFFICE installation because it is already working.
+
+---
+
+## Test B — DOCX
+
+Create:
+
+test-lesson-plan.docx
+
+Verify:
+
+- Opens
+- Displays
+- Can edit
+- Can save
+- Changes persist
+
+---
+
+## Test C — XLSX
+
+Use an existing Mentora XLSX class record.
+
+Verify:
+
+- Opens
+- Displays
+- Can edit
+- Can save
+- Changes persist
+- Existing formatting is preserved
+
+---
+
+## Test D — Authorization
+
+User A:
+- Can open own document.
+
+User B:
+- Cannot open User A's private document.
+
+---
+
+## Test E — AI Lesson Plan
+
+Generate an AI lesson plan.
+
+Verify:
+
+LLM
+↓
+DOCX
+↓
+ONLYOFFICE
+↓
+Teacher edits
+↓
+Save
+↓
+Updated DOCX
+
+---
+
+# PHASE 18 — DOCKER
+
+Do not create a second ONLYOFFICE container.
+
+The existing container is already running.
+
+Inspect the existing Docker setup and make sure Laravel can communicate with ONLYOFFICE appropriately.
+
+If the project uses Docker Compose, use the existing network.
+
+Do not change working services unnecessarily.
+
+---
+
+# PHASE 19 — DOCUMENTATION
+
+Update project documentation with:
+
+1. ONLYOFFICE architecture
+2. Required environment variables
+3. React package
+4. Laravel API endpoints
+5. Callback behavior
+6. Document storage flow
+7. Local development setup
+8. Production deployment requirements
+9. JWT configuration
+10. Troubleshooting
+
+Include a section:
+
+"How ONLYOFFICE integrates with Mentora"
+
+Explain:
+
+React
+↓
+Laravel editor configuration
+↓
+ONLYOFFICE Docs
+↓
+Document
+↓
+ONLYOFFICE callback
+↓
+Laravel storage
+
+---
+
+# ACCEPTANCE CRITERIA
+
+The task is complete ONLY when:
+
+[ ] Existing ONLYOFFICE container is reused.
+
+[ ] React package is installed.
+
+[ ] ONLYOFFICE editor appears inside React.
+
+[ ] DOCX can be opened.
+
+[ ] DOCX can be edited.
+
+[ ] DOCX changes persist.
+
+[ ] XLSX can be opened.
+
+[ ] XLSX can be edited.
+
+[ ] XLSX changes persist.
+
+[ ] Laravel controls document access.
+
+[ ] Unauthorized users cannot access documents.
+
+[ ] ONLYOFFICE callback works.
+
+[ ] JWT is enabled.
+
+[ ] JWT secret is never exposed to React.
+
+[ ] Existing Lesson Plan generation still works.
+
+[ ] Existing Class Record XLSX export still works.
+
+[ ] Existing DepEd/E-Class Record formatting is not broken.
+
+[ ] AI-generated lesson plans can be opened in ONLYOFFICE for human validation.
+
+[ ] No unrelated Mentora features are broken.
+
+[ ] Documentation is updated.
+
+---
+
+# IMPLEMENTATION ORDER
+
+Follow this exact order:
+
+1. Inspect existing project.
+2. Report planned changes.
+3. Install React ONLYOFFICE package if needed.
+4. Create reusable OnlyOfficeEditor component.
+5. Create Laravel editor configuration endpoint.
+6. Test a static DOCX.
+7. Implement document content endpoint.
+8. Implement ONLYOFFICE callback.
+9. Verify DOCX save/reopen.
+10. Integrate Lesson Plans.
+11. Integrate XLSX Class Records.
+12. Test authorization/security.
+13. Update documentation.
+
+Do not attempt every feature simultaneously.
+
+The FIRST milestone is:
+
+"Open a DOCX file inside the existing Mentora React application using the already-running ONLYOFFICE server."
+
+Only after this works should the implementation continue to callbacks, XLSX, Lesson Plans, and Class Records.

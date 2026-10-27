@@ -314,10 +314,9 @@ export default function GradingSystem() {
                   <SelectValue placeholder="Select grading period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1st">1st Grading Period</SelectItem>
-                  <SelectItem value="2nd">2nd Grading Period</SelectItem>
-                  <SelectItem value="3rd">3rd Grading Period</SelectItem>
-                  <SelectItem value="4th">4th Grading Period</SelectItem>
+                  <SelectItem value="1st">1st Trimester</SelectItem>
+                  <SelectItem value="2nd">2nd Trimester</SelectItem>
+                  <SelectItem value="3rd">3rd Trimester</SelectItem>
                 </SelectContent>
               </Select>
             </CardContent>
