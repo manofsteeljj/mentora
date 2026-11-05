@@ -5,6 +5,7 @@ import RegisterCard from './components/RegisterCard'
 import LandingPage from './components/LandingPage'
 import DashboardLayout from './components/DashboardLayout'
 import PendingApprovalPage from './components/PendingApprovalPage'
+import RecoveryPasswordCard from './components/RecoveryPasswordCard'
 
 function mountComponent(elementId, Component) {
   const el = document.getElementById(elementId)
@@ -17,6 +18,7 @@ function mountComponent(elementId, Component) {
 document.addEventListener('DOMContentLoaded', () => {
   mountComponent('react-login-root', LoginCard)
   mountComponent('react-register-root', RegisterCard)
+  mountComponent('react-recovery-password-root', RecoveryPasswordCard)
   mountComponent('react-landing-root', LandingPage)
   mountComponent('react-dashboard-root', DashboardLayout)
   mountComponent('react-pending-approval-root', PendingApprovalPage)

@@ -7,17 +7,19 @@ use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\View\View;
 
 class RecoveryPasswordController extends Controller
 {
-    public function create(): View
+    public function create(): Response
     {
-        return view('auth.forgot-password');
+        return response()
+            ->view('auth.forgot-password')
+            ->header('Cache-Control', 'no-store, private');
     }
 
     public function store(Request $request): RedirectResponse

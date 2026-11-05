@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
+import PasswordInput from './PasswordInput'
 import logoImage from '../../logo/MENTORA LOGO.png'
 import { motion } from 'framer-motion'
 import { Mail, Lock, User, ArrowRight, BookOpen, Brain, Users, Shield } from 'lucide-react'
@@ -300,10 +301,10 @@ export default function LoginCard() {
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
+                  leadingIcon={<Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

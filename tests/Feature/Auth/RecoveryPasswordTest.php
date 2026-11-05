@@ -15,7 +15,8 @@ class RecoveryPasswordTest extends TestCase
     {
         $this->get('/forgot-password')
             ->assertOk()
-            ->assertSee('Recovery Key');
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertSee('react-recovery-password-root');
     }
 
     public function test_password_can_be_recovered_with_the_users_recovery_key(): void

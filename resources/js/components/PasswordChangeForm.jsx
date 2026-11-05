@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
 import { Label } from './ui/label'
+import PasswordInput from './PasswordInput'
 
 const fields = [
   { name: 'current_password', label: 'Current password', autocomplete: 'current-password' },
@@ -85,10 +85,9 @@ export default function PasswordChangeForm() {
       {fields.map(({ name, label, autocomplete }) => (
         <div className="space-y-1" key={name}>
           <Label htmlFor={`password-change-${name}`}>{label}</Label>
-          <Input
+          <PasswordInput
             id={`password-change-${name}`}
             name={name}
-            type="password"
             autoComplete={autocomplete}
             required
             aria-invalid={Boolean(errors[name])}

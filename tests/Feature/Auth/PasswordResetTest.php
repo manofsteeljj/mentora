@@ -13,7 +13,7 @@ class PasswordResetTest extends TestCase
     {
         $this->get('/forgot-password')
             ->assertOk()
-            ->assertSee('Recovery Key');
+            ->assertSee('react-recovery-password-root');
     }
 
     public function test_email_only_password_reset_is_not_available(): void
