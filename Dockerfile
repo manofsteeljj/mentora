@@ -11,7 +11,8 @@ RUN composer install \
     --no-interaction \
     --prefer-dist \
     --optimize-autoloader \
-    --no-scripts
+    --no-scripts \
+    --ignore-platform-req=ext-gd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — Node / Vite asset build
@@ -20,14 +21,13 @@ FROM node:20-alpine AS assets
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package*.json ./
 RUN npm ci
 
 # Copy everything that Vite needs to build
 COPY resources ./resources
 COPY public     ./public
-COPY vite.config.js ./
-# tailwind / postcss configs (copy only if present)
+COPY vite.config.* ./
 COPY tailwind.config.* postcss.config.* ./
 
 RUN npm run build
@@ -93,16 +93,12 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
 
 WORKDIR /var/www/html
 
-# Copy application source (respects .dockerignore)
+# Copy application source
 COPY . .
 
 # Overlay build artefacts from previous stages
 COPY --from=vendor /app/vendor        ./vendor
 COPY --from=assets /app/public/build  ./public/build
-
-# Copy start script
-COPY docker/start.sh /usr/local/bin/start.sh
-RUN chmod +x /usr/local/bin/start.sh
 
 # Fix permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
@@ -110,4 +106,4 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
 
 EXPOSE 80
 
-CMD ["/usr/local/bin/start.sh"]
+CMD ["sh", "-c", "php artisan migrate --force && apache2-foreground"]
