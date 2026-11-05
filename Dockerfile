@@ -26,7 +26,6 @@ RUN npm ci
 # Copy everything that Vite needs to build
 COPY resources ./resources
 COPY public     ./public
-COPY logo       ./logo
 COPY vite.config.js ./
 # tailwind / postcss configs (copy only if present)
 COPY tailwind.config.* postcss.config.* ./

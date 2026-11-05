@@ -190,7 +190,11 @@ Route::middleware('auth')->group(function () {
 
     // Students API
     Route::get('/api/students', [StudentController::class, 'index'])->name('api.students.index');
+    Route::post('/api/students/{student}/drop', [StudentController::class, 'drop'])->name('api.students.drop');
+    Route::post('/api/students/{student}/reinstate', [StudentController::class, 'reinstate'])->name('api.students.reinstate');
     Route::get('/api/admin/students', [StudentController::class, 'adminIndex'])->name('api.admin.students.index');
+    Route::post('/api/admin/students/{student}/drop', [StudentController::class, 'adminDrop'])->name('api.admin.students.drop');
+    Route::post('/api/admin/students/{student}/reinstate', [StudentController::class, 'adminReinstate'])->name('api.admin.students.reinstate');
     Route::get('/api/admin/courses', [CourseController::class, 'adminIndex'])->name('api.admin.courses.index');
     Route::get('/api/admin/materials', [MaterialController::class, 'adminIndex'])->name('api.admin.materials.index');
     Route::get('/api/admin/faculty', [FacultyController::class, 'adminIndex'])->name('api.admin.faculty.index');
