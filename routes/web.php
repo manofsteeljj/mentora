@@ -74,6 +74,12 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/api/csrf-token', function () {
+        return response()
+            ->json(['token' => csrf_token()])
+            ->header('Cache-Control', 'no-store, private');
+    })->name('api.csrf-token');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -173,6 +179,7 @@ Route::middleware('auth')->group(function () {
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'role' => $user->role,
             'avatar' => $user->avatar,
             'google_connected' => !empty($user->google_id),
             'email_verified_at' => $user->email_verified_at,

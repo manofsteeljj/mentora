@@ -81,6 +81,8 @@ teacher@example.edu,provided-key
 
 Run `php artisan migrate` and then `php artisan users:import-recovery-keys path\to\recovery-keys.csv`. The application stores only password hashes of recovery keys; keep the source CSV private and remove it from shared or public locations after import.
 
+The provided staff accounts are seeded with `php artisan db:seed --class=UserSeeder` after migrations. Their roles are stored in the `users.role` column; `admin` and `developer` accounts have admin access. Passwords are listed in `database/seeders/UserSeeder.php` and hashed before they are stored. Re-running the seeder updates those accounts and resets their passwords to the listed values. Do not commit this seeder to a public repository or use these starter passwords in production; replace them with unique credentials and require users to change them.
+
 ---
 
 ## 🛠️ Tech Stack

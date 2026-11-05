@@ -104,8 +104,7 @@ class CourseController extends Controller
      */
     public function adminIndex(Request $request)
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        if ($email !== 'admin@mentora.local') {
+        if (! $request->user()->isAdmin()) {
             return response()->json([
                 'message' => 'Forbidden',
             ], 403);

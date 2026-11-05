@@ -196,6 +196,7 @@ class DashboardController extends Controller
     public function adminOverview(Request $request)
     {
         $currentUser = $request->user();
+        abort_if(! $currentUser->isAdmin(), 403, 'Forbidden');
 
         $totalStudents = Student::count();
         $totalFaculty = User::count();

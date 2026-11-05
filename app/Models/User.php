@@ -20,6 +20,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'role',
         'password',
         'google_id',
         'google_token',
@@ -59,6 +60,12 @@ class User extends Authenticatable
     public function isPending(): bool  { return $this->status === 'pending'; }
     public function isActive(): bool   { return $this->status === 'active'; }
     public function isRejected(): bool { return $this->status === 'rejected'; }
+
+    public function isAdmin(): bool
+    {
+        return in_array($this->role, ['admin', 'developer'], true)
+            || strtolower((string) $this->email) === 'admin@mentora.local';
+    }
 
     public function courses()
     {

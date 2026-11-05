@@ -485,8 +485,7 @@ class DocumentController extends Controller
     // Same admin rule as AdminLessonPlanController / FacultyController
     private function isAdminUser(): bool
     {
-        $email = Str::lower((string) (Auth::user()->email ?? ''));
-        return $email === 'admin@mentora.local';
+        return Auth::user()->isAdmin();
     }
 
     /**

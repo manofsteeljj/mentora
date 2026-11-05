@@ -13,8 +13,7 @@ class AdminLessonPlanController extends Controller
 
     private function assertAdmin(Request $request): void
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        abort_if($email !== 'admin@mentora.local', 403, 'Forbidden');
+        abort_if(! $request->user()->isAdmin(), 403, 'Forbidden');
     }
 
     // ── GET /api/admin/lesson-plans ──────────────────────────────────────────

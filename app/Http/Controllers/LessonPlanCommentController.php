@@ -98,8 +98,7 @@ class LessonPlanCommentController extends Controller
 
     private function isAdmin(User $user): bool
     {
-        $email = Str::lower((string) ($user->email ?? ''));
-        return $email === 'admin@mentora.local';
+        return $user->isAdmin();
     }
 
     private function format(LessonPlanComment $comment, User $viewer): array

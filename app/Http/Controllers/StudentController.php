@@ -165,8 +165,7 @@ class StudentController extends Controller
      */
     public function adminIndex(Request $request): JsonResponse
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        if ($email !== 'admin@mentora.local') {
+        if (! $request->user()->isAdmin()) {
             return response()->json([
                 'message' => 'Forbidden',
             ], 403);
@@ -267,8 +266,7 @@ class StudentController extends Controller
      */
     public function adminDrop(Request $request, Student $student): JsonResponse
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        if ($email !== 'admin@mentora.local') {
+        if (! $request->user()->isAdmin()) {
             return response()->json([
                 'message' => 'Forbidden',
             ], 403);
@@ -297,8 +295,7 @@ class StudentController extends Controller
      */
     public function adminReinstate(Request $request, Student $student): JsonResponse
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        if ($email !== 'admin@mentora.local') {
+        if (! $request->user()->isAdmin()) {
             return response()->json([
                 'message' => 'Forbidden',
             ], 403);

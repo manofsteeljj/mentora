@@ -22,19 +22,38 @@ export default function PasswordChangeForm() {
     setProcessing(true)
 
     const formData = new FormData(form)
-    const payload = Object.fromEntries(formData.entries())
 
     try {
-      const response = await fetch('/password', {
-        method: 'PUT',
+      const tokenResponse = await fetch('/api/csrf-token', {
         credentials: 'same-origin',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-        },
-        body: JSON.stringify(payload),
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
       })
+
+      if (!tokenResponse.ok) {
+        throw new Error('Unable to refresh your session security token. Reload the page and try again.')
+      }
+
+      const { token } = await tokenResponse.json()
+      if (!token) {
+        throw new Error('A session security token was not returned. Reload the page and try again.')
+      }
+
+      formData.set('_token', token)
+      formData.set('_method', 'PUT')
+      const response = await fetch(
+        document.querySelector('meta[name="password-update-url"]')?.getAttribute('content') || '/password',
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-CSRF-TOKEN': token,
+          },
+          body: new URLSearchParams(formData).toString(),
+        }
+      )
 
       const result = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -56,7 +75,13 @@ export default function PasswordChangeForm() {
   }
 
   return (
-    <form className="space-y-3" onSubmit={submit}>
+    <form
+      action={document.querySelector('meta[name="password-update-url"]')?.getAttribute('content') || '/password'}
+      method="POST"
+      className="space-y-3"
+      onSubmit={submit}
+    >
+      <input type="hidden" name="_method" value="PUT" />
       {fields.map(({ name, label, autocomplete }) => (
         <div className="space-y-1" key={name}>
           <Label htmlFor={`password-change-${name}`}>{label}</Label>
