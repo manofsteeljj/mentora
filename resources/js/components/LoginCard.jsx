@@ -7,10 +7,6 @@ import { motion } from 'framer-motion'
 import { Mail, Lock, User, ArrowRight, BookOpen, Brain, Users, Shield } from 'lucide-react'
 
 export default function LoginCard() {
-  const csrf = typeof document !== 'undefined'
-    ? (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')
-    : ''
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('faculty')
@@ -25,7 +21,29 @@ export default function LoginCard() {
     setStatus('')
 
     try {
+      const loginPage = await fetch('/login', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'text/html' },
+      })
+
+      if (!loginPage.ok) {
+        throw new Error('Unable to refresh login security token.')
+      }
+
+      const loginHtml = await loginPage.text()
+      const loginDocument = new DOMParser().parseFromString(loginHtml, 'text/html')
+      const csrf = loginDocument.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+
+      if (!csrf) {
+        throw new Error('Login security token was not found.')
+      }
+
+      document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', csrf)
+
       const formData = new URLSearchParams()
+      formData.append('_token', csrf)
       formData.append('email', email)
       formData.append('password', password)
       formData.append('role', role)
@@ -60,7 +78,7 @@ export default function LoginCard() {
         setStatus('Login failed: ' + (text || resp.statusText))
       }
     } catch (err) {
-      setStatus('Network error')
+      setStatus(err instanceof Error ? err.message : 'Network error')
     } finally {
       setLoading(false)
     }
@@ -277,7 +295,7 @@ export default function LoginCard() {
                   href="/forgot-password"
                   className="text-sm text-green-600 hover:text-green-700 font-medium"
                 >
-                  Forgot?
+                  Recover with key
                 </a>
               </div>
               <div className="relative">

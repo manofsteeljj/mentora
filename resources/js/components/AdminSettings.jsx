@@ -6,6 +6,7 @@ import { Switch } from './ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
+import PasswordChangeForm from './PasswordChangeForm'
 import {
   Shield,
   Database,
@@ -404,12 +405,7 @@ export default function AdminSettings() {
 
             <div className="space-y-2">
               <Label>Change Admin Password</Label>
-              <div className="space-y-2">
-                <Input type="password" placeholder="Current password" />
-                <Input type="password" placeholder="New password" />
-                <Input type="password" placeholder="Confirm new password" />
-                <Button variant="outline">Update Password</Button>
-              </div>
+              <PasswordChangeForm />
             </div>
           </CardContent>
         </Card>

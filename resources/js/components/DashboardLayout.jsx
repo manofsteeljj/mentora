@@ -57,9 +57,9 @@ export default function DashboardLayout() {
     })
       .then(r => (r.ok ? r.json() : null))
       .then((data) => {
-        const email = String(data?.email || '').toLowerCase()
-        const role = email === 'admin@mentora.local' ? 'admin' : 'faculty'
-        setUserRole(role)
+        const role = String(data?.role || '').toLowerCase()
+        const isAdmin = role === 'admin' || role === 'developer' || String(data?.email || '').toLowerCase() === 'admin@mentora.local'
+        setUserRole(isAdmin ? 'admin' : 'faculty')
       })
       .catch(() => {
         setUserRole('faculty')

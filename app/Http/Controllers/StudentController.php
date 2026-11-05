@@ -98,6 +98,9 @@ class StudentController extends Controller
                 'email'       => $s->email,
                 'photoUrl'    => $s->photo_url,
                 'studentNumber' => $s->student_number,
+                'status'      => $s->status ?? 'enrolled',
+                'droppedAt'   => $s->dropped_at?->toISOString(),
+                'dropReason'  => $s->drop_reason,
                 'course'      => [
                     'id'          => $s->course?->id,
                     'course_code' => $s->course?->course_code,
@@ -162,8 +165,7 @@ class StudentController extends Controller
      */
     public function adminIndex(Request $request): JsonResponse
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        if ($email !== 'admin@mentora.local') {
+        if (! $request->user()->isAdmin()) {
             return response()->json([
                 'message' => 'Forbidden',
             ], 403);
@@ -187,13 +189,127 @@ class StudentController extends Controller
                 'section' => (string) ($course?->section ?? 'N/A'),
                 'department' => $this->inferDepartmentName($course),
                 'enrollmentDate' => optional($student->created_at)->toDateString(),
-                'status' => (($course?->status ?? 'ACTIVE') === 'ACTIVE') ? 'Active' : 'Inactive',
+                'status' => ucfirst($student->status ?? 'enrolled'),
+                'droppedAt' => $student->dropped_at?->toDateString(),
+                'dropReason' => $student->drop_reason,
             ];
         })->values();
 
         return response()->json([
             'students' => $students,
             'total' => $students->count(),
+        ]);
+    }
+
+    /**
+     * Drop a student (mark as dropped without deleting).
+     */
+    public function drop(Request $request, Student $student): JsonResponse
+    {
+        $user = $request->user();
+
+        // Check if user owns this student's course
+        $course = $student->course;
+        if (!$course || $course->user_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized to drop this student.',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $student->drop($data['reason'] ?? null);
+
+        return response()->json([
+            'message' => 'Student dropped successfully.',
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'status' => $student->status,
+                'droppedAt' => $student->dropped_at?->toISOString(),
+                'dropReason' => $student->drop_reason,
+            ],
+        ]);
+    }
+
+    /**
+     * Reinstate a dropped student.
+     */
+    public function reinstate(Request $request, Student $student): JsonResponse
+    {
+        $user = $request->user();
+
+        // Check if user owns this student's course
+        $course = $student->course;
+        if (!$course || $course->user_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized to reinstate this student.',
+            ], 403);
+        }
+
+        $student->reinstate();
+
+        return response()->json([
+            'message' => 'Student reinstated successfully.',
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'status' => $student->status,
+            ],
+        ]);
+    }
+
+    /**
+     * Admin drop a student.
+     */
+    public function adminDrop(Request $request, Student $student): JsonResponse
+    {
+        if (! $request->user()->isAdmin()) {
+            return response()->json([
+                'message' => 'Forbidden',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $student->drop($data['reason'] ?? null);
+
+        return response()->json([
+            'message' => 'Student dropped successfully.',
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'status' => $student->status,
+                'droppedAt' => $student->dropped_at?->toDateString(),
+                'dropReason' => $student->drop_reason,
+            ],
+        ]);
+    }
+
+    /**
+     * Admin reinstate a dropped student.
+     */
+    public function adminReinstate(Request $request, Student $student): JsonResponse
+    {
+        if (! $request->user()->isAdmin()) {
+            return response()->json([
+                'message' => 'Forbidden',
+            ], 403);
+        }
+
+        $student->reinstate();
+
+        return response()->json([
+            'message' => 'Student reinstated successfully.',
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'status' => $student->status,
+            ],
         ]);
     }
 }

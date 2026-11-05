@@ -11,8 +11,7 @@ class FacultyController extends Controller
     // ── Admin check helper ────────────────────────────────────────────────────
     private function assertAdmin(Request $request): void
     {
-        $email = Str::lower((string) ($request->user()->email ?? ''));
-        abort_if($email !== 'admin@mentora.local', 403, 'Forbidden');
+        abort_if(! $request->user()->isAdmin(), 403, 'Forbidden');
     }
 
     // ── Shared helpers ────────────────────────────────────────────────────────
@@ -60,6 +59,7 @@ class FacultyController extends Controller
             $q->withCount('students')->orderBy('course_code');
         }])
             ->where('status', 'active')          // only show approved faculty in the main list
+            ->whereNotIn('role', ['admin', 'developer'])
             ->where('email', '!=', 'admin@mentora.local')
             ->orderBy('name')
             ->get()

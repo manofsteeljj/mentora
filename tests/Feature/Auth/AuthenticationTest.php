@@ -14,7 +14,10 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get('/login');
 
-        $response->assertStatus(200);
+        $response
+            ->assertStatus(200)
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertSee('name="csrf-token"', false);
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
