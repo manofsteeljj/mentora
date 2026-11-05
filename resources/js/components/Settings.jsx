@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Separator } from './ui/separator'
+import PasswordChangeForm from './PasswordChangeForm'
 
 export default function Settings({ userRole = 'faculty' }) {
   return (
@@ -140,12 +141,7 @@ export default function Settings({ userRole = 'faculty' }) {
 
             <div className="space-y-2">
               <Label>Change Password</Label>
-              <div className="space-y-2">
-                <Input type="password" placeholder="Current password" />
-                <Input type="password" placeholder="New password" />
-                <Input type="password" placeholder="Confirm new password" />
-                <Button variant="outline">Update Password</Button>
-              </div>
+              <PasswordChangeForm />
             </div>
           </CardContent>
         </Card>

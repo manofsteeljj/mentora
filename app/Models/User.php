@@ -39,6 +39,7 @@ class User extends Authenticatable
         'remember_token',
         'google_token',
         'google_refresh_token',
+        'recovery_key_hash',
     ];
 
     /**

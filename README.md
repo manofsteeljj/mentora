@@ -69,8 +69,17 @@ The AI assistant is grounded in the instructor's own uploaded course materials u
 ### 🔐 Authentication
 - Email/password registration and login (Laravel Breeze)
 - **Google OAuth** — one-click sign-in that also authorizes Google Classroom access
-- Email verification and password reset flows
+- Email verification, password changes in Settings, and recovery-key password resets
 - Secure password confirmation for sensitive actions
+
+Password recovery requires a per-account key. An administrator can import provided keys with a CSV containing `email,recovery_key` columns:
+
+```csv
+email,recovery_key
+teacher@example.edu,provided-key
+```
+
+Run `php artisan migrate` and then `php artisan users:import-recovery-keys path\to\recovery-keys.csv`. The application stores only password hashes of recovery keys; keep the source CSV private and remove it from shared or public locations after import.
 
 ---
 

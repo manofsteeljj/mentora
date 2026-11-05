@@ -277,7 +277,7 @@ export default function LoginCard() {
                   href="/forgot-password"
                   className="text-sm text-green-600 hover:text-green-700 font-medium"
                 >
-                  Forgot?
+                  Recover with key
                 </a>
               </div>
               <div className="relative">
