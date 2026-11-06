@@ -276,7 +276,7 @@ export default function LoginCard() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your.email@lorma.edu"
+                  placeholder="your.email@mentora.tech"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

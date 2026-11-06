@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, CheckCircle2, Sparkles, Brain, ClipboardCheck, BarChart3 } from 'lucide-react'
 import { Button } from './ui/button'
 import logoImage from '../../logo/MENTORA LOGO.png'
+import schoolSealImage from '../../logo/Masupe Elementary School Seal.png'
 import leafLogoImage from '../../logo/LEAF LOGO MENTORA.png'
 import teacherHeroImage from '../../logo/viewpoint/teacher with laptopo.webp'
 
@@ -94,14 +95,21 @@ export default function LandingPage(props) {
                 rotate: [180, 0, -10, 10, 0],
               }}
               transition={{ duration: 1.5, times: [0, 0.4, 0.6, 0.8, 1], ease: [0.34, 1.56, 0.64, 1] }}
-              className="relative z-10"
+              className="relative z-10 flex items-center justify-center gap-5 md:gap-8 px-6"
             >
               <motion.img
                 src={logoImage}
                 alt="Mentora"
-                className="w-[280px] md:w-[360px] object-contain drop-shadow-2xl"
+                className="w-[210px] md:w-[300px] object-contain drop-shadow-2xl"
                 animate={{ y: [0, -12, 0] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+              />
+              <motion.img
+                src={schoolSealImage}
+                alt="Masupe Elementary School"
+                className="w-[110px] md:w-[170px] object-contain drop-shadow-2xl"
+                animate={{ y: [0, -12, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 1.65 }}
               />
             </motion.div>
 

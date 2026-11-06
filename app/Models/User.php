@@ -28,6 +28,7 @@ class User extends Authenticatable
         'avatar',
         'last_synced_at',
         'status',
+        'settings',
     ];
 
     /**
@@ -54,6 +55,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
             'last_synced_at'    => 'datetime',
+            'settings'          => 'array',
         ];
     }
 

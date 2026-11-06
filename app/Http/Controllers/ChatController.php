@@ -37,15 +37,24 @@ class ChatController extends Controller
         $conversationId = $request->input('conversation_id');
         $courseId        = $request->input('course_id');
         $materialId      = $request->input('material_id');
+        $userSettings     = array_merge([
+            'response_detail' => 'balanced',
+            'include_code_examples' => true,
+            'auto_load_course_context' => true,
+            'show_related_topics' => true,
+            'save_chat_history' => true,
+        ], $request->user()->settings ?? []);
+        $saveChatHistory = (bool) $userSettings['save_chat_history'];
 
         $isNewConversation = false;
+        $conversation = null;
 
         // Create or fetch the conversation
-        if ($conversationId) {
+        if ($saveChatHistory && $conversationId) {
             $conversation = Conversation::where('id', $conversationId)
                 ->where('user_id', Auth::id())
                 ->firstOrFail();
-        } else {
+        } elseif ($saveChatHistory) {
             $isNewConversation = true;
 
             $conversation = Conversation::create([
@@ -55,11 +64,13 @@ class ChatController extends Controller
         }
 
         // Build conversation context from recent messages in THIS conversation
-        $recentChats = Chat::where('conversation_id', $conversation->id)
-            ->orderBy('created_at', 'desc')
-            ->take(10)
-            ->get()
-            ->reverse();
+        $recentChats = $conversation
+            ? Chat::where('conversation_id', $conversation->id)
+                ->orderBy('created_at', 'desc')
+                ->take(10)
+                ->get()
+                ->reverse()
+            : collect();
 
         $conversationContext = '';
         foreach ($recentChats as $chat) {
@@ -90,7 +101,9 @@ class ChatController extends Controller
 
         $ragResult = $attachedMaterial
             ? $this->buildAttachedMaterialContext($attachedMaterial)
-            : $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials);
+            : ($userSettings['auto_load_course_context']
+                ? $this->retrieveRelevantMaterials($userMessage, $courseId, $preferAllMaterials)
+                : ['context' => '', 'sources' => []]);
 
         $ragContext = $ragResult['context'];
         $ragSources = $ragResult['sources'];
@@ -110,6 +123,15 @@ class ChatController extends Controller
             . "- NEVER output a wall of text in a single paragraph. Always break content into structured sections.\n"
             . "- For study guides, quizzes, and lesson plans, use clear sections with headings, lists, and separators.\n"
             . "- Do NOT paste long excerpts from the COURSE MATERIALS. Never quote more than 1-2 short lines; summarize instead.";
+
+        $systemPrompt .= "\n\nRESPONSE PREFERENCES:\n"
+            . "- Detail level: {$userSettings['response_detail']}.\n"
+            . ($userSettings['include_code_examples']
+                ? "- Include code examples when they clarify a technical answer.\n"
+                : "- Do not include code examples unless the user explicitly requests code.\n")
+            . ($userSettings['show_related_topics']
+                ? "- End with a brief 'Related Topics' section when relevant.\n"
+                : "- Do not add a Related Topics section unless explicitly requested.\n");
 
 
         if ($ragContext) {
@@ -161,7 +183,7 @@ class ChatController extends Controller
             if ($apiKey === '') {
                 return response()->json([
                     'response' => 'AI provider is not configured. Set OPENROUTER_API_KEY on the server.',
-                    'conversation_id' => $conversation->id,
+                    'conversation_id' => $conversation?->id,
                 ], 200);
             }
 
@@ -249,25 +271,27 @@ class ChatController extends Controller
         }
 
         // Save to database. If persistence fails, still return the generated answer.
-        try {
-            Chat::create([
-                'user_id'         => Auth::id(),
-                'conversation_id' => $conversation->id,
-                'course_id'       => $courseId,
-                'message'         => $userMessage,
-                'response'        => $responseText,
-            ]);
-        } catch (Throwable $e) {
-            Log::error('Failed to persist chat response', [
-                'conversation_id' => $conversation->id,
-                'course_id' => $courseId,
-                'user_id' => Auth::id(),
-                'response_length' => mb_strlen($responseText),
-                'error' => $e->getMessage(),
-            ]);
+        if ($saveChatHistory && $conversation) {
+            try {
+                Chat::create([
+                    'user_id'         => Auth::id(),
+                    'conversation_id' => $conversation?->id,
+                    'course_id'       => $courseId,
+                    'message'         => $userMessage,
+                    'response'        => $responseText,
+                ]);
+            } catch (Throwable $e) {
+                Log::error('Failed to persist chat response', [
+                    'conversation_id' => $conversation->id,
+                    'course_id' => $courseId,
+                    'user_id' => Auth::id(),
+                    'response_length' => mb_strlen($responseText),
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        if ($isNewConversation) {
+        if ($saveChatHistory && $conversation && $isNewConversation) {
             try {
                 $generatedTitle = $this->generateConversationTitleFromContext($userMessage, $responseText);
                 if ($generatedTitle !== '') {
@@ -278,7 +302,7 @@ class ChatController extends Controller
                 }
             } catch (Throwable $e) {
                 Log::warning('Failed to generate conversation title from context', [
-                    'conversation_id' => $conversation->id,
+                    'conversation_id' => $conversation?->id,
                     'user_id' => Auth::id(),
                     'error' => $e->getMessage(),
                 ]);
@@ -353,6 +377,17 @@ class ChatController extends Controller
             ->firstOrFail();
 
         $conversation->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Delete every conversation owned by the authenticated user.
+     */
+    public function deleteAllConversations()
+    {
+        Conversation::where('user_id', Auth::id())->delete();
+        Chat::where('user_id', Auth::id())->whereNull('conversation_id')->delete();
 
         return response()->json(['success' => true]);
     }

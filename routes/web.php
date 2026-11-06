@@ -20,6 +20,7 @@ use App\Http\Controllers\LessonPlanCommentController;
 use App\Http\Controllers\AdminLessonPlanController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\OnlyofficeInsertPluginController;
+use App\Http\Controllers\UserSettingsController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -80,6 +81,9 @@ Route::middleware('auth')->group(function () {
             ->header('Cache-Control', 'no-store, private');
     })->name('api.csrf-token');
 
+    Route::get('/api/settings', [UserSettingsController::class, 'show'])->name('api.settings.show');
+    Route::patch('/api/settings', [UserSettingsController::class, 'update'])->name('api.settings.update');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -90,6 +94,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/chat/conversations', [ChatController::class, 'conversations'])->name('chat.conversations');
     Route::get('/api/chat/history/{conversationId?}', [ChatController::class, 'history'])->name('chat.history');
     Route::delete('/api/chat/conversations/{conversationId}', [ChatController::class, 'deleteConversation'])->name('chat.deleteConversation');
+    Route::delete('/api/chat/conversations', [ChatController::class, 'deleteAllConversations'])->name('chat.deleteAllConversations');
 
     // Materials API
     Route::get('/api/materials', [MaterialController::class, 'apiIndex'])->name('api.materials.index');
