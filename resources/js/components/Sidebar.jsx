@@ -15,6 +15,7 @@ import {
   TableProperties,
   NotebookPen,
   Download,
+  FilePenLine,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -123,6 +124,15 @@ export default function Sidebar({
                   </span>
                 )}
               </Button>
+
+              <Button
+                variant={activeView === 'document-editor' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('document-editor')}
+              >
+                <FilePenLine className="w-4 h-4 mr-2" />
+                Document Editor
+              </Button>
             </>
           ) : (
             <>
@@ -223,6 +233,15 @@ export default function Sidebar({
               >
                 <NotebookPen className="w-4 h-4 mr-2" />
                 Lesson Plans
+              </Button>
+
+              <Button
+                variant={activeView === 'document-editor' ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => onViewChange?.('document-editor')}
+              >
+                <FilePenLine className="w-4 h-4 mr-2" />
+                Document Editor
               </Button>
             </>
           )}

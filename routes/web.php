@@ -248,6 +248,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/admin/lesson-plans/{id}/request-revision',   [AdminLessonPlanController::class, 'requestRevision']) ->name('api.admin.lesson-plans.request-revision');
 
     // ONLYOFFICE Document API
+    Route::get('/api/documents/personal', [DocumentController::class, 'personalIndex'])->name('api.documents.personal.index');
+    Route::post('/api/documents/personal/upload', [DocumentController::class, 'personalUpload'])->name('api.documents.personal.upload');
+    Route::post('/api/documents/personal/template', [DocumentController::class, 'personalTemplate'])->name('api.documents.personal.template');
+    Route::get('/api/documents/personal/{id}/editor', [DocumentController::class, 'personalEditor'])->name('api.documents.personal.editor');
+    Route::get('/api/documents/personal/{id}/download', [DocumentController::class, 'personalDownload'])->name('api.documents.personal.download');
     Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');
     Route::post('/api/documents/attendance-sf2/generate',   [DocumentController::class, 'generateSf2']) ->name('api.documents.attendance-sf2.generate');
     Route::post('/api/documents/class-record-sf1/generate', [DocumentController::class, 'generateSf1']) ->name('api.documents.class-record-sf1.generate');
@@ -275,6 +280,9 @@ Route::post('/api/documents/onlyoffice/callback', [DocumentController::class, 'c
     ->name('api.documents.callback');
 
 // ONLYOFFICE content download — accessed by ONLYOFFICE server using short-lived JWT query token
+Route::get('/api/documents/personal/{id}/content', [DocumentController::class, 'personalContent'])
+    ->name('api.documents.personal.content');
+
 Route::get('/api/documents/{type}/{id}/content', [DocumentController::class, 'content'])
     ->name('api.documents.content');
 

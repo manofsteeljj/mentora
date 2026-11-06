@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\LessonPlan;
 use App\Models\ClassRecordDocument;
 use App\Models\AttendanceDocument;
+use App\Models\UserDocument;
 use App\Models\Course;
 use App\Services\LessonPlanService;
 use App\Services\SF2ExportService;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
  * Handles ONLYOFFICE document editing integration.
@@ -29,6 +32,12 @@ use Illuminate\Support\Str;
  */
 class DocumentController extends Controller
 {
+    private const PERSONAL_TYPES = [
+        'docx' => ['ooType' => 'word', 'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'xlsx' => ['ooType' => 'cell', 'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'xls' => ['ooType' => 'cell', 'mime' => 'application/vnd.ms-excel'],
+        'pptx' => ['ooType' => 'slide', 'mime' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ];
     // Supported document types and their ONLYOFFICE documentType mappings
     private const TYPE_MAP = [
         'lesson-plan' => [
@@ -47,6 +56,178 @@ class DocumentController extends Controller
             'mime' => 'application/vnd.ms-excel',
         ],
     ];
+
+    public function personalIndex(Request $request): JsonResponse
+    {
+        return response()->json(
+            UserDocument::where('user_id', $request->user()->id)
+                ->latest('updated_at')
+                ->get(['id', 'title', 'kind', 'extension', 'mime_type', 'version', 'created_at', 'updated_at'])
+        );
+    }
+
+    public function personalUpload(Request $request): JsonResponse
+    {
+        $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'kind' => ['nullable', 'string', 'in:uploaded,sf1,sf2,class-record'],
+            'file' => ['required', 'file', 'mimes:docx,xlsx,xls,pptx', 'max:51200'],
+        ]);
+
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!isset(self::PERSONAL_TYPES[$extension])) {
+            return response()->json(['message' => 'This file type cannot be edited in ONLYOFFICE.'], 422);
+        }
+
+        $document = UserDocument::create([
+            'user_id' => $request->user()->id,
+            'title' => trim((string) ($request->input('title') ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME))),
+            'kind' => $request->input('kind', 'uploaded'),
+            'extension' => $extension,
+            'storage_path' => 'documents/personal/pending',
+            'mime_type' => self::PERSONAL_TYPES[$extension]['mime'],
+        ]);
+
+        $path = 'documents/personal/' . $document->id . '.' . $extension;
+        $stored = $file->storeAs('documents/personal', $document->id . '.' . $extension, 'local');
+        if ($stored === false) {
+            $document->delete();
+            return response()->json(['message' => 'Unable to save the uploaded document.'], 500);
+        }
+
+        $document->update(['storage_path' => $path]);
+
+        return response()->json($this->personalDocumentPayload($document), 201);
+    }
+
+    public function personalTemplate(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'kind' => ['required', 'string', 'in:sf1,sf2,class-record'],
+            'title' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $titles = [
+            'sf1' => 'SF1 School Register',
+            'sf2' => 'SF2 Daily Attendance',
+            'class-record' => 'Class Record',
+        ];
+        $title = trim((string) ($data['title'] ?? '')) ?: $titles[$data['kind']];
+        $document = UserDocument::create([
+            'user_id' => $request->user()->id,
+            'title' => $title,
+            'kind' => $data['kind'],
+            'extension' => 'xlsx',
+            'storage_path' => 'documents/personal/pending',
+            'mime_type' => self::PERSONAL_TYPES['xlsx']['mime'],
+        ]);
+
+        $path = 'documents/personal/' . $document->id . '.xlsx';
+        try {
+            Storage::disk('local')->makeDirectory('documents/personal');
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setCellValue('A1', $title);
+            $sheet->setCellValue('A2', 'Edit this document in ONLYOFFICE.');
+            (new Xlsx($spreadsheet))->save(Storage::disk('local')->path($path));
+            $spreadsheet->disconnectWorksheets();
+        } catch (\Throwable $e) {
+            $document->delete();
+            Log::error('Personal document template creation failed', ['kind' => $data['kind'], 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Unable to create the document template.'], 500);
+        }
+
+        $document->update(['storage_path' => $path]);
+
+        return response()->json($this->personalDocumentPayload($document), 201);
+    }
+
+    public function personalEditor(Request $request, int $id): JsonResponse
+    {
+        $document = UserDocument::where('user_id', $request->user()->id)->findOrFail($id);
+        $type = self::PERSONAL_TYPES[$document->extension];
+        $appUrl = $this->resolveOnlyOfficeAppUrl($request);
+        $jwtSecret = (string) config('services.onlyoffice.jwt_secret', '');
+        $contentUrl = $appUrl . '/api/documents/personal/' . $id . '/content';
+        if ($jwtSecret !== '') {
+            $contentUrl .= '?access_token=' . urlencode($this->signJwt([
+                'type' => 'personal',
+                'id' => $id,
+                'exp' => time() + 3600,
+            ], $jwtSecret));
+        }
+
+        $config = [
+            'document' => [
+                'fileType' => $document->extension,
+                'key' => $document->documentKey(),
+                'title' => $document->title . '.' . $document->extension,
+                'url' => $contentUrl,
+            ],
+            'documentType' => $type['ooType'],
+            'editorConfig' => [
+                'callbackUrl' => $appUrl . '/api/documents/onlyoffice/callback?type=personal&id=' . $id,
+                'mode' => 'edit',
+                'lang' => 'en',
+                'user' => ['id' => (string) $request->user()->id, 'name' => $request->user()->name],
+            ],
+        ];
+        if ($jwtSecret !== '') {
+            $config['token'] = $this->signJwt($config, $jwtSecret);
+        }
+
+        return response()->json([
+            'id' => $id,
+            'type' => 'personal',
+            'title' => $document->title,
+            'extension' => $document->extension,
+            'documentType' => $type['ooType'],
+            'config' => $config,
+            'onlyofficeUrl' => rtrim(config('services.onlyoffice.url', 'http://localhost:8080'), '/'),
+        ]);
+    }
+
+    public function personalContent(Request $request, int $id): Response
+    {
+        $document = UserDocument::findOrFail($id);
+        if (Auth::check()) {
+            abort_unless((int) $document->user_id === (int) Auth::id(), 403);
+        } elseif (!$this->hasValidContentAccessToken($request, 'personal', $id)) {
+            abort(403, 'Invalid content access token.');
+        }
+
+        abort_unless(Storage::disk('local')->exists($document->storage_path), 404);
+        return response(Storage::disk('local')->get($document->storage_path), 200, [
+            'Content-Type' => $document->mime_type,
+            'Content-Disposition' => 'inline; filename="' . $document->title . '.' . $document->extension . '"',
+        ]);
+    }
+
+    public function personalDownload(Request $request, int $id): Response
+    {
+        $document = UserDocument::where('user_id', $request->user()->id)->findOrFail($id);
+        abort_unless(Storage::disk('local')->exists($document->storage_path), 404);
+
+        return response()->download(
+            Storage::disk('local')->path($document->storage_path),
+            $document->title . '.' . $document->extension,
+            ['Content-Type' => $document->mime_type]
+        );
+    }
+
+    private function personalDocumentPayload(UserDocument $document): array
+    {
+        return [
+            'id' => $document->id,
+            'type' => 'personal',
+            'title' => $document->title,
+            'kind' => $document->kind,
+            'extension' => $document->extension,
+            'version' => $document->version,
+            'updated_at' => $document->updated_at?->toISOString(),
+        ];
+    }
 
     // ── POST /api/documents/{type}/upload ────────────────────────────────────
 
@@ -410,6 +591,21 @@ class DocumentController extends Controller
             }
 
             try {
+                if ($type === 'personal') {
+                    $doc = UserDocument::findOrFail($id);
+                    $response = Http::timeout(30)->get($downloadUrl);
+                    if ($response->failed()) {
+                        Log::error('ONLYOFFICE callback: failed to download personal document', ['id' => $id]);
+                        return response()->json(['error' => 1]);
+                    }
+
+                    Storage::disk('local')->put($doc->storage_path, $response->body());
+                    $doc->update(['version' => ($doc->version ?? 1) + 1]);
+                    Log::info('ONLYOFFICE callback: personal document saved', ['id' => $id]);
+
+                    return response()->json(['error' => 0]);
+                }
+
                 [$model, $ext, , $pathKey, $verKey, $dir] = $this->resolveType($type);
                 /** @var LessonPlan|ClassRecordDocument|AttendanceDocument $doc */
                 $doc = $model::findOrFail($id);
