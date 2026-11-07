@@ -21,6 +21,7 @@ use App\Http\Controllers\AdminLessonPlanController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\OnlyofficeInsertPluginController;
 use App\Http\Controllers\UserSettingsController;
+use App\Http\Controllers\SchoolController;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('courses', CourseController::class);
@@ -33,6 +34,8 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/api/schools', [SchoolController::class, 'index'])->name('api.schools.index');
 
 Route::view('/support', 'support')->name('support');
 Route::view('/terms', 'terms')->name('terms');
@@ -147,6 +150,7 @@ Route::middleware('auth')->group(function () {
 
         $course = \App\Models\Course::create([
             'user_id'       => $request->user()->id,
+            'school_id'     => $request->user()->school_id,
             'course_code'   => $data['course_code'],
             'course_name'   => $data['course_name'],
             'description'   => $data['description'] ?? null,
@@ -185,6 +189,8 @@ Route::middleware('auth')->group(function () {
             'name' => $user->name,
             'email' => $user->email,
             'role' => $user->role,
+            'school_id' => $user->school_id,
+            'school' => $user->school?->only(['id', 'code', 'name']),
             'avatar' => $user->avatar,
             'google_connected' => !empty($user->google_id),
             'email_verified_at' => $user->email_verified_at,
@@ -253,6 +259,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/documents/personal/template', [DocumentController::class, 'personalTemplate'])->name('api.documents.personal.template');
     Route::get('/api/documents/personal/{id}/editor', [DocumentController::class, 'personalEditor'])->name('api.documents.personal.editor');
     Route::get('/api/documents/personal/{id}/download', [DocumentController::class, 'personalDownload'])->name('api.documents.personal.download');
+    Route::patch('/api/documents/personal/{id}', [DocumentController::class, 'personalRename'])->name('api.documents.personal.rename');
+    Route::delete('/api/documents/personal/{id}', [DocumentController::class, 'personalDelete'])->name('api.documents.personal.delete');
     Route::post('/api/documents/{type}/upload',             [DocumentController::class, 'upload']) ->name('api.documents.upload');
     Route::post('/api/documents/attendance-sf2/generate',   [DocumentController::class, 'generateSf2']) ->name('api.documents.attendance-sf2.generate');
     Route::post('/api/documents/class-record-sf1/generate', [DocumentController::class, 'generateSf1']) ->name('api.documents.class-record-sf1.generate');

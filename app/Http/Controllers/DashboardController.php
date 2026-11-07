@@ -199,7 +199,7 @@ class DashboardController extends Controller
         abort_if(! $currentUser->isAdmin(), 403, 'Forbidden');
 
         $totalStudents = Student::count();
-        $totalFaculty = User::count();
+        $totalFaculty = User::where('school_id', $currentUser->school_id)->count();
         $totalCourses = Course::count();
         $totalMaterials = Material::count();
 
@@ -208,7 +208,8 @@ class DashboardController extends Controller
         $materialsThisMonth = Material::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-        $newFacultyThisMonth = User::whereMonth('created_at', now()->month)
+        $newFacultyThisMonth = User::where('school_id', $currentUser->school_id)
+            ->whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
 
@@ -258,7 +259,8 @@ class DashboardController extends Controller
                 ];
             });
 
-        $facultyEvents = User::latest('created_at')
+        $facultyEvents = User::where('school_id', $currentUser->school_id)
+            ->latest('created_at')
             ->limit(6)
             ->get()
             ->map(function (User $user) use ($currentUser) {

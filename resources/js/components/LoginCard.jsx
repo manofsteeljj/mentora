@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -11,9 +11,24 @@ export default function LoginCard() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('faculty')
+  const [schools, setSchools] = useState([])
+  const [schoolId, setSchoolId] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('')
+
+  useEffect(() => {
+    fetch('/api/schools', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Unable to load schools.')
+        return response.json()
+      })
+      .then((data) => {
+        setSchools(data)
+        if (data[0]) setSchoolId(String(data[0].id))
+      })
+      .catch((error) => setStatus(error.message))
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -48,6 +63,7 @@ export default function LoginCard() {
       formData.append('email', email)
       formData.append('password', password)
       formData.append('role', role)
+      formData.append('school_id', schoolId)
 
       const resp = await fetch('/login', {
         method: 'POST',
@@ -264,6 +280,25 @@ export default function LoginCard() {
                   </span>
                 </motion.button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="school_id" className="text-sm font-medium text-gray-700">
+                School
+              </Label>
+              <select
+                id="school_id"
+                value={schoolId}
+                onChange={(e) => setSchoolId(e.target.value)}
+                required
+                className="h-12 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-green-600 focus:ring-green-600"
+              >
+                <option value="" disabled>Select your school</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>{school.name}</option>
+                ))}
+              </select>
+              {errors.school_id && <p className="mt-1 text-xs text-red-600">{errors.school_id[0]}</p>}
             </div>
 
             {/* Email Input */}

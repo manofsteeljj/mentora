@@ -45,6 +45,10 @@ function getToken() {
 
 export default function DashboardLayout() {
   const [activeView, setActiveView] = useState('dashboard')
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem('mentora.sidebarWidth'))
+    return Number.isFinite(saved) && saved >= 240 && saved <= 420 ? saved : 256
+  })
   const [userRole, setUserRole] = useState('faculty')
   const [pendingLessonPlans, setPendingLessonPlans] = useState(0)
   const [conversations, setConversations] = useState([])
@@ -171,6 +175,12 @@ export default function DashboardLayout() {
     setSelectedCourseForMaterials(course)
     setActiveView('course-materials-viewer')
   }
+
+  const handleSidebarResize = useCallback((width) => {
+    const nextWidth = Math.min(420, Math.max(240, width))
+    setSidebarWidth(nextWidth)
+    window.localStorage.setItem('mentora.sidebarWidth', String(nextWidth))
+  }, [])
 
   const renderContent = () => {
     switch (activeView) {
@@ -300,6 +310,8 @@ export default function DashboardLayout() {
     <div className="flex h-screen bg-gray-50">
       <Toaster richColors position="top-right" />
       <Sidebar
+        width={sidebarWidth}
+        onResize={handleSidebarResize}
         activeView={activeView}
         onViewChange={handleViewChange}
         onLogout={handleLogout}
@@ -312,7 +324,7 @@ export default function DashboardLayout() {
         onUploadStudents={() => setActiveView('students')}
         onDownloadStudents={() => setActiveView('students')}
       />
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <Suspense fallback={<div className="p-6 text-gray-600">Loading...</div>}>
           {renderContent()}
         </Suspense>

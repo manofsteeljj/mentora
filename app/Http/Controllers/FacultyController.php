@@ -58,6 +58,7 @@ class FacultyController extends Controller
         $faculty = User::with(['courses' => function ($q) {
             $q->withCount('students')->orderBy('course_code');
         }])
+            ->where('school_id', $request->user()->school_id)
             ->where('status', 'active')          // only show approved faculty in the main list
             ->whereNotIn('role', ['admin', 'developer'])
             ->where('email', '!=', 'admin@mentora.local')
@@ -78,6 +79,7 @@ class FacultyController extends Controller
         $this->assertAdmin($request);
 
         $pending = User::where('status', 'pending')
+            ->where('school_id', $request->user()->school_id)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn (User $user) => [
@@ -101,7 +103,7 @@ class FacultyController extends Controller
     {
         $this->assertAdmin($request);
 
-        $user = User::findOrFail($userId);
+        $user = User::where('school_id', $request->user()->school_id)->findOrFail($userId);
         $user->update(['status' => 'active']);
 
         return response()->json(['success' => true, 'status' => 'active', 'name' => $user->name]);
@@ -116,7 +118,7 @@ class FacultyController extends Controller
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $user = User::findOrFail($userId);
+        $user = User::where('school_id', $request->user()->school_id)->findOrFail($userId);
         $user->update(['status' => 'rejected']);
 
         return response()->json(['success' => true, 'status' => 'rejected', 'name' => $user->name]);

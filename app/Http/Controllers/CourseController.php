@@ -57,6 +57,7 @@ class CourseController extends Controller
 
         Course::create([
             'user_id' => auth()->id(),
+            'school_id' => auth()->user()->school_id,
             'course_code' => $request->course_code,
             'course_name' => $request->course_name,
             'description' => $request->description,

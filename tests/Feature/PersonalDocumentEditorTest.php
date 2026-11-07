@@ -57,6 +57,23 @@ class PersonalDocumentEditorTest extends TestCase
             ->assertJsonPath('documentType', 'cell');
     }
 
+    public function test_sf1_and_sf2_templates_use_the_official_workbooks(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+
+        foreach (['sf1', 'sf2'] as $kind) {
+            $response = $this->actingAs($user)
+                ->postJson('/api/documents/personal/template', ['kind' => $kind])
+                ->assertCreated()
+                ->assertJsonPath('extension', 'xls');
+
+            $document = UserDocument::findOrFail($response->json('id'));
+            $expected = file_get_contents(resource_path('templates/' . $kind . '_template.xls'));
+            $this->assertSame($expected, Storage::disk('local')->get($document->storage_path));
+        }
+    }
+
     public function test_user_cannot_open_another_users_personal_document(): void
     {
         Storage::fake('local');
@@ -100,5 +117,58 @@ class PersonalDocumentEditorTest extends TestCase
         Storage::disk('local')->assertExists($document->storage_path);
         $this->assertSame('updated-file', Storage::disk('local')->get($document->storage_path));
         $this->assertSame(2, $document->refresh()->version);
+    }
+
+    public function test_owner_can_rename_and_delete_a_personal_document(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        Storage::disk('local')->put('documents/personal/file.xlsx', 'file');
+        $document = UserDocument::create([
+            'user_id' => $user->id,
+            'title' => 'Old Name',
+            'kind' => 'uploaded',
+            'extension' => 'xlsx',
+            'storage_path' => 'documents/personal/file.xlsx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson('/api/documents/personal/' . $document->id, ['title' => 'New Name'])
+            ->assertOk()
+            ->assertJsonPath('title', 'New Name');
+
+        $this->actingAs($user)
+            ->deleteJson('/api/documents/personal/' . $document->id)
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseMissing('user_documents', ['id' => $document->id]);
+        Storage::disk('local')->assertMissing('documents/personal/file.xlsx');
+    }
+
+    public function test_user_cannot_rename_or_delete_another_users_document(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $document = UserDocument::create([
+            'user_id' => $owner->id,
+            'title' => 'Private',
+            'kind' => 'uploaded',
+            'extension' => 'xlsx',
+            'storage_path' => 'documents/personal/private.xlsx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+
+        $this->actingAs($other)
+            ->patchJson('/api/documents/personal/' . $document->id, ['title' => 'Changed'])
+            ->assertNotFound();
+
+        $this->actingAs($other)
+            ->deleteJson('/api/documents/personal/' . $document->id)
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('user_documents', ['id' => $document->id, 'title' => 'Private']);
     }
 }

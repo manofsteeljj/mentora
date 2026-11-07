@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -26,15 +27,22 @@ class UserSeeder extends Seeder
         ['name' => 'Mhelba C. Rodelas', 'email' => 'rodelas@mentora-mes.tech', 'password' => 'rodelas26', 'role' => 'teacher'],
         ['name' => 'Herson O. Gavina', 'email' => 'herson.gavina@mentora-mes.tech', 'password' => 'hgavina26', 'role' => 'teacher'],
         ['name' => 'Mary Grace H. Cañero', 'email' => 'canero@mentora-mes.tech', 'password' => 'canero26', 'role' => 'teacher'],
+        ['name' => 'Testing Evaluator Admin', 'email' => 'evaluator@mentora-mes.tech', 'password' => 'evaluator26', 'role' => 'admin', 'school_code' => 'TEST-EVALUATORS'],
     ];
 
     public function run(): void
     {
         foreach (self::USERS as $user) {
+            $schoolCode = $user['school_code'] ?? 'MASUPE-ELEM';
+            $schoolId = School::where('code', $schoolCode)->value('id');
+            $attributes = $user;
+            unset($attributes['school_code']);
+
             User::updateOrCreate(
-                ['email' => $user['email']],
+                ['school_id' => $schoolId, 'email' => $user['email']],
                 [
-                    ...$user,
+                    ...$attributes,
+                    'school_id' => $schoolId,
                     'password' => Hash::make($user['password']),
                     'status' => 'active',
                     'email_verified_at' => now(),

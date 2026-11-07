@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Handles ONLYOFFICE document editing integration.
@@ -114,24 +115,33 @@ class DocumentController extends Controller
             'class-record' => 'Class Record',
         ];
         $title = trim((string) ($data['title'] ?? '')) ?: $titles[$data['kind']];
+        $extension = $data['kind'] === 'class-record' ? 'xlsx' : 'xls';
+        $mimeType = self::PERSONAL_TYPES[$extension]['mime'];
         $document = UserDocument::create([
             'user_id' => $request->user()->id,
             'title' => $title,
             'kind' => $data['kind'],
-            'extension' => 'xlsx',
+            'extension' => $extension,
             'storage_path' => 'documents/personal/pending',
-            'mime_type' => self::PERSONAL_TYPES['xlsx']['mime'],
+            'mime_type' => $mimeType,
         ]);
 
-        $path = 'documents/personal/' . $document->id . '.xlsx';
+        $path = 'documents/personal/' . $document->id . '.' . $extension;
         try {
             Storage::disk('local')->makeDirectory('documents/personal');
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setCellValue('A1', $title);
-            $sheet->setCellValue('A2', 'Edit this document in ONLYOFFICE.');
-            (new Xlsx($spreadsheet))->save(Storage::disk('local')->path($path));
-            $spreadsheet->disconnectWorksheets();
+            if ($data['kind'] !== 'class-record') {
+                $templatePath = resource_path('templates/' . $data['kind'] . '_template.xls');
+                if (!is_file($templatePath) || !copy($templatePath, Storage::disk('local')->path($path))) {
+                    throw new \RuntimeException('The official document template is unavailable.');
+                }
+            } else {
+                $spreadsheet = new Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+                $sheet->setCellValue('A1', $title);
+                $sheet->setCellValue('A2', 'Edit this document in ONLYOFFICE.');
+                (new Xlsx($spreadsheet))->save(Storage::disk('local')->path($path));
+                $spreadsheet->disconnectWorksheets();
+            }
         } catch (\Throwable $e) {
             $document->delete();
             Log::error('Personal document template creation failed', ['kind' => $data['kind'], 'error' => $e->getMessage()]);
@@ -204,7 +214,7 @@ class DocumentController extends Controller
         ]);
     }
 
-    public function personalDownload(Request $request, int $id): Response
+    public function personalDownload(Request $request, int $id): BinaryFileResponse
     {
         $document = UserDocument::where('user_id', $request->user()->id)->findOrFail($id);
         abort_unless(Storage::disk('local')->exists($document->storage_path), 404);
@@ -214,6 +224,32 @@ class DocumentController extends Controller
             $document->title . '.' . $document->extension,
             ['Content-Type' => $document->mime_type]
         );
+    }
+
+    public function personalRename(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+        ]);
+
+        $title = trim($data['title']);
+        if ($title === '') {
+            return response()->json(['message' => 'A document name is required.'], 422);
+        }
+
+        $document = UserDocument::where('user_id', $request->user()->id)->findOrFail($id);
+        $document->update(['title' => $title]);
+
+        return response()->json($this->personalDocumentPayload($document->refresh()));
+    }
+
+    public function personalDelete(Request $request, int $id): JsonResponse
+    {
+        $document = UserDocument::where('user_id', $request->user()->id)->findOrFail($id);
+        Storage::disk('local')->delete($document->storage_path);
+        $document->delete();
+
+        return response()->json(['success' => true]);
     }
 
     private function personalDocumentPayload(UserDocument $document): array

@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
+use Illuminate\Validation\Rule;
 
 class RegisteredUserController extends Controller
 {
@@ -22,12 +23,17 @@ class RegisteredUserController extends Controller
     {
         $validated = $request->validate([
             'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
+            'email'    => [
+                'required', 'string', 'lowercase', 'email', 'max:255',
+                Rule::unique(User::class)->where(fn ($query) => $query->where('school_id', $request->integer('school_id'))),
+            ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
         ]);
 
         $user = User::create([
             'name'     => $validated['name'],
+            'school_id' => $validated['school_id'],
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
             'status'   => 'pending',   // must be approved by admin before accessing the app

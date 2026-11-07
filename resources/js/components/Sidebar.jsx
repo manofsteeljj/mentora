@@ -20,6 +20,7 @@ import {
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import logoImage from '../../logo/MENTORA LOGO.png'
+import { useRef } from 'react'
 
 function formatTimestamp(value) {
   if (!value) return ''
@@ -40,9 +41,37 @@ export default function Sidebar({
   onDownloadStudents,
   userRole = 'faculty',
   pendingLessonPlans = 0,
+  width = 256,
+  onResize,
 }) {
+  const resizing = useRef(false)
+
+  function startResize(event) {
+    event.preventDefault()
+    resizing.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMove = (moveEvent) => {
+      if (resizing.current) onResize?.(moveEvent.clientX)
+    }
+    const stopResize = () => {
+      resizing.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', stopResize)
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', stopResize)
+  }
+
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
+    <aside
+      className="relative shrink-0 bg-white border-r border-gray-200 flex flex-col h-screen"
+      style={{ width: `${width}px` }}
+    >
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
           <img src={logoImage} alt="Mentora" className="h-10 object-contain" />
@@ -293,6 +322,13 @@ export default function Sidebar({
           Logout
         </Button>
       </div>
-    </div>
+      <button
+        type="button"
+        aria-label="Resize sidebar"
+        title="Drag to resize sidebar"
+        onPointerDown={startResize}
+        className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize bg-transparent transition-colors hover:bg-green-500/60 focus:bg-green-500/60"
+      />
+    </aside>
   )
 }

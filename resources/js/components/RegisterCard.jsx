@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -15,10 +15,22 @@ export default function RegisterCard() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
+  const [schools, setSchools] = useState([])
+  const [schoolId, setSchoolId] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('')
+
+  useEffect(() => {
+    fetch('/api/schools', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        setSchools(data)
+        if (data[0]) setSchoolId(String(data[0].id))
+      })
+      .catch(() => setStatus('Unable to load schools.'))
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -39,6 +51,7 @@ export default function RegisterCard() {
       formData.append('password', password)
       formData.append('password_confirmation', passwordConfirmation)
       formData.append('role', 'faculty')
+      formData.append('school_id', schoolId)
 
       const resp = await fetch('/register', {
         method: 'POST',
@@ -154,6 +167,25 @@ export default function RegisterCard() {
                 />
               </div>
               {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email[0]}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="school_id" className="text-sm font-medium text-gray-700">
+                School
+              </Label>
+              <select
+                id="school_id"
+                value={schoolId}
+                onChange={(e) => setSchoolId(e.target.value)}
+                required
+                className="h-12 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-green-600 focus:ring-green-600"
+              >
+                <option value="" disabled>Select your school</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>{school.name}</option>
+                ))}
+              </select>
+              {errors.school_id && <p className="mt-1 text-xs text-red-600">{errors.school_id[0]}</p>}
             </div>
 
             {/* Password Input */}

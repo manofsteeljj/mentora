@@ -16,6 +16,13 @@ class AdminLessonPlanController extends Controller
         abort_if(! $request->user()->isAdmin(), 403, 'Forbidden');
     }
 
+    private function schoolPlans(Request $request)
+    {
+        return LessonPlan::whereHas('user', function ($query) use ($request): void {
+            $query->where('school_id', $request->user()->school_id);
+        });
+    }
+
     // ── GET /api/admin/lesson-plans ──────────────────────────────────────────
 
     public function index(Request $request): JsonResponse
@@ -24,9 +31,9 @@ class AdminLessonPlanController extends Controller
 
         $status = $request->query('status');
         if ($status && $status !== 'all') {
-            $plans = LessonPlan::with('user:id,name,email')->where('status', $status);
+            $plans = $this->schoolPlans($request)->with('user:id,name,email')->where('status', $status);
         } else {
-            $plans = LessonPlan::with('user:id,name,email');
+            $plans = $this->schoolPlans($request)->with('user:id,name,email');
         }
 
         $plans = $plans->orderByDesc('submitted_at')
@@ -35,11 +42,11 @@ class AdminLessonPlanController extends Controller
             ->map(fn (LessonPlan $plan) => $this->formatListItem($plan));
 
         $counts = [
-            'total'    => LessonPlan::count(),
-            'pending'  => LessonPlan::where('status', LessonPlan::STATUS_PENDING)->count(),
-            'approved' => LessonPlan::where('status', LessonPlan::STATUS_APPROVED)->count(),
-            'denied'   => LessonPlan::where('status', LessonPlan::STATUS_DENIED)->count(),
-            'revision' => LessonPlan::where('status', LessonPlan::STATUS_NEEDS_REVISION)->count(),
+            'total'    => $this->schoolPlans($request)->count(),
+            'pending'  => $this->schoolPlans($request)->where('status', LessonPlan::STATUS_PENDING)->count(),
+            'approved' => $this->schoolPlans($request)->where('status', LessonPlan::STATUS_APPROVED)->count(),
+            'denied'   => $this->schoolPlans($request)->where('status', LessonPlan::STATUS_DENIED)->count(),
+            'revision' => $this->schoolPlans($request)->where('status', LessonPlan::STATUS_NEEDS_REVISION)->count(),
         ];
 
         return response()->json(['plans' => $plans, 'counts' => $counts]);
@@ -51,7 +58,9 @@ class AdminLessonPlanController extends Controller
     {
         $this->assertAdmin($request);
 
-        $plan = LessonPlan::with(['user:id,name,email', 'reviewer:id,name'])->findOrFail($id);
+        $plan = $this->schoolPlans($request)
+            ->with(['user:id,name,email', 'reviewer:id,name'])
+            ->findOrFail($id);
 
         return response()->json([
             'plan'     => $plan,
@@ -95,7 +104,7 @@ class AdminLessonPlanController extends Controller
             'feedback' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $plan = LessonPlan::findOrFail($id);
+        $plan = $this->schoolPlans($request)->findOrFail($id);
         $plan->update([
             'status'         => $status,
             'admin_feedback' => $data['feedback'] ?? null,

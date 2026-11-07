@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DocumentEditor } from '@onlyoffice/document-editor-react'
 import { toast } from 'sonner'
-import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles, MessageSquare } from 'lucide-react'
+import { Loader2, AlertTriangle, ArrowLeft, FileText, Sparkles, MessageSquare, Maximize, Minimize } from 'lucide-react'
 import { Button } from './ui/button'
 import EditorChatSidebar from './EditorChatSidebar'
 import CommentsSidebar from './CommentsSidebar'
@@ -53,6 +53,7 @@ export default function OnlyOfficeEditor({
   showCommentsSidebar = false,
   toolbarExtra = null,
 }) {
+  const rootRef = useRef(null)
   const [state, setState] = useState('loading')   // loading | ready | error
   const [errorMsg, setErrorMsg] = useState('')
   const [editorConfig, setEditorConfig] = useState(null)
@@ -63,6 +64,7 @@ export default function OnlyOfficeEditor({
   const [sidebarTab, setSidebarTab] = useState(showCommentsSidebar ? 'comments' : 'chat')
   const [commentCount, setCommentCount] = useState(null)
   const editorRef = useRef(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // ── "Insert into document" bridge ─────────────────────────────────────────
   // Laravel autostarts a tiny hidden ONLYOFFICE plugin (served by the app
@@ -71,6 +73,28 @@ export default function OnlyOfficeEditor({
   const insertPluginWindowRef = useRef(null)
   const insertPendingRef = useRef(null)          // { reqId, timer, resolve }
   const [insertBridgeReady, setInsertBridgeReady] = useState(false)
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === rootRef.current)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      } else if (rootRef.current?.requestFullscreen) {
+        await rootRef.current.requestFullscreen()
+      }
+    } catch (error) {
+      console.error('Unable to toggle ONLYOFFICE fullscreen mode:', error)
+      toast.error('Fullscreen mode is not available in this browser.')
+    }
+  }
 
   useEffect(() => {
     const onWindowMessage = (e) => {
@@ -210,7 +234,7 @@ export default function OnlyOfficeEditor({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div ref={rootRef} className="flex flex-col h-screen min-h-0 bg-gray-50">
 
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 z-10">
@@ -270,6 +294,20 @@ export default function OnlyOfficeEditor({
               Ask AI
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+          >
+            {isFullscreen ? (
+              <Minimize className="w-4 h-4" />
+            ) : (
+              <Maximize className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline ml-1">{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
+          </Button>
           {toolbarExtra}
           {editorMode === 'view' ? (
             <div className="text-xs text-gray-400 hidden sm:block">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, FileText, FolderOpen, Loader2, Plus, Upload } from 'lucide-react'
+import { Download, FileText, FolderOpen, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
 import OnlyOfficeEditor from './OnlyOfficeEditor'
@@ -83,6 +83,52 @@ export default function DocumentEditorPage() {
     } finally {
       setBusy('')
     }
+
+  }
+
+  async function renameDocument(document) {
+    const title = window.prompt('New document name', document.title)
+    if (title === null || !title.trim() || title.trim() === document.title) return
+
+    setBusy(`rename-${document.id}`)
+    try {
+      const response = await fetch(`/api/documents/personal/${document.id}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
+        body: JSON.stringify({ title: title.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Unable to rename the document.')
+      setDocuments((current) => current.map((item) => item.id === document.id ? data : item))
+      if (activeDocument?.id === document.id) setActiveDocument((current) => ({ ...current, ...data }))
+      toast.success('Document renamed.')
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function deleteDocument(document) {
+    if (!window.confirm(`Delete "${document.title}"? This cannot be undone.`)) return
+
+    setBusy(`delete-${document.id}`)
+    try {
+      const response = await fetch(`/api/documents/personal/${document.id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() },
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Unable to delete the document.')
+      setDocuments((current) => current.filter((item) => item.id !== document.id))
+      toast.success('Document deleted.')
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setBusy('')
+    }
   }
 
   if (activeDocument) {
@@ -143,9 +189,17 @@ export default function DocumentEditorPage() {
                     <span className="truncate font-medium">{document.title}</span>
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs uppercase text-gray-500">{document.extension}</span>
                   </button>
-                  <a href={`/api/documents/personal/${document.id}/download`} className="inline-flex items-center text-sm text-green-700 hover:underline">
-                    <Download className="mr-1 h-4 w-4" />Download
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => renameDocument(document)} disabled={busy !== ''} className="inline-flex items-center text-sm text-gray-600 hover:text-green-700 disabled:opacity-50">
+                      <Pencil className="mr-1 h-4 w-4" />Rename
+                    </button>
+                    <button type="button" onClick={() => deleteDocument(document)} disabled={busy !== ''} className="inline-flex items-center text-sm text-red-600 hover:text-red-700 disabled:opacity-50">
+                      <Trash2 className="mr-1 h-4 w-4" />Delete
+                    </button>
+                    <a href={`/api/documents/personal/${document.id}/download`} className="inline-flex items-center text-sm text-green-700 hover:underline">
+                      <Download className="mr-1 h-4 w-4" />Download
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>

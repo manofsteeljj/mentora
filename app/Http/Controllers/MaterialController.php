@@ -81,6 +81,11 @@ class MaterialController extends Controller
 
     public function store(Request $request, $courseId)
     {
+        $course = Course::where('id', $courseId)
+            ->where('user_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->firstOrFail();
+
         $request->validate([
             'title' => 'required|string|max:255',
             'file' => 'required|mimes:pdf|max:10240',
@@ -102,6 +107,7 @@ class MaterialController extends Controller
 
         $material = Material::create([
             'course_id' => $courseId,
+            'school_id' => $course->school_id,
             'title' => $request->input('title'),
             'file_path' => $path,
             'extracted_text' => $text,

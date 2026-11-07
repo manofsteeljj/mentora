@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\School;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -17,6 +18,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(UserSeeder::class);
+        $schoolId = School::where('code', 'MASUPE-ELEM')->value('id');
 
         // Optional: generate more users
         // User::factory(10)->create();
@@ -26,6 +28,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'faculty@mentora.test'],
             [
                 'name' => 'Faculty Demo',
+                'school_id' => $schoolId,
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
@@ -35,6 +38,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'faculty1@mentora.test'],
             [
                 'name' => 'Teacher',
+                'school_id' => $schoolId,
                 'password' => Hash::make('password1'),
                 'email_verified_at' => now(),
             ]
@@ -45,6 +49,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@mentora.local'],
             [
                 'name' => 'System Administrator',
+                'school_id' => $schoolId,
                 'password' => Hash::make('password'),
                 'role' => 'admin',
                 'email_verified_at' => now(),

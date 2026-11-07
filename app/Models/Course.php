@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Course extends Model
 {
     use HasFactory;
+    use BelongsToSchool;
 
     protected $fillable = [
         'user_id',
+        'school_id',
         'google_classroom_id',
         'course_code',
         'course_name',
