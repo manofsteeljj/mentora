@@ -37,23 +37,27 @@ export default function LoginCard() {
     setStatus('')
 
     try {
-      const loginPage = await fetch('/login', {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: { Accept: 'text/html' },
-      })
-
-      if (!loginPage.ok) {
-        throw new Error('Unable to refresh login security token.')
-      }
-
-      const loginHtml = await loginPage.text()
-      const loginDocument = new DOMParser().parseFromString(loginHtml, 'text/html')
-      const csrf = loginDocument.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      let csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
 
       if (!csrf) {
-        throw new Error('Login security token was not found.')
+        const loginPage = await fetch('/login', {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'text/html' },
+        })
+
+        if (!loginPage.ok) {
+          throw new Error('Unable to refresh login security token.')
+        }
+
+        const loginHtml = await loginPage.text()
+        const loginDocument = new DOMParser().parseFromString(loginHtml, 'text/html')
+        csrf = loginDocument.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+
+        if (!csrf) {
+          throw new Error('Login security token was not found.')
+        }
       }
 
       document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', csrf)
@@ -65,16 +69,25 @@ export default function LoginCard() {
       formData.append('role', role)
       formData.append('school_id', schoolId)
 
-      const resp = await fetch('/login', {
-        method: 'POST',
-        headers: {
-          'X-CSRF-TOKEN': csrf,
-          'Accept': 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        },
-        body: formData.toString(),
-        credentials: 'same-origin'
-      })
+      let resp
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          resp = await fetch('/login', {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': csrf,
+              'Accept': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: formData.toString(),
+            credentials: 'same-origin'
+          })
+          break
+        } catch (error) {
+          if (attempt === 1 || !(error instanceof TypeError)) throw error
+          await new Promise((resolve) => setTimeout(resolve, 750))
+        }
+      }
 
       if (resp.redirected) {
         window.location.href = resp.url

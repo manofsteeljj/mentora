@@ -27,7 +27,8 @@ class UserSeeder extends Seeder
         ['name' => 'Mhelba C. Rodelas', 'email' => 'rodelas@mentora-mes.tech', 'password' => 'rodelas26', 'role' => 'teacher'],
         ['name' => 'Herson O. Gavina', 'email' => 'herson.gavina@mentora-mes.tech', 'password' => 'hgavina26', 'role' => 'teacher'],
         ['name' => 'Mary Grace H. Cañero', 'email' => 'canero@mentora-mes.tech', 'password' => 'canero26', 'role' => 'teacher'],
-        ['name' => 'Testing Evaluator Admin', 'email' => 'evaluator@mentora-mes.tech', 'password' => 'evaluator26', 'role' => 'admin', 'school_code' => 'TEST-EVALUATORS'],
+        ['name' => 'Testing Evaluator Admin', 'email' => 'evaluator@mentora-mes.tech', 'password' => 'evaluator26', 'role' => 'teacher', 'school_code' => 'TEST-EVALUATORS'],
+        ['name' => 'Testing Evaluator Admin', 'email' => 'evaluator-admin@mentora-mes.tech', 'password' => 'evaluatoradmin26', 'role' => 'admin', 'school_code' => 'TEST-EVALUATORS'],
     ];
 
     public function run(): void
