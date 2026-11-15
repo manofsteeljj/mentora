@@ -171,7 +171,7 @@ class SF2ExportService
      */
     private function buildCalendar(): void
     {
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $this->month, $this->year);
+        $daysInMonth = $this->daysInMonth();
         $firstWeekday = (int) date('N', mktime(0, 0, 0, $this->month, 1, $this->year)); // 1=Mon … 7=Sun
 
         if ($firstWeekday >= 6) {
@@ -549,7 +549,7 @@ class SF2ExportService
     private function loadAttendance(): array
     {
         $startDate = sprintf('%04d-%02d-01', $this->year, $this->month);
-        $endDate = sprintf('%04d-%02d-%02d', $this->year, $this->month, cal_days_in_month(CAL_GREGORIAN, $this->month, $this->year));
+        $endDate = sprintf('%04d-%02d-%02d', $this->year, $this->month, $this->daysInMonth());
 
         $map = [];
         Attendance::where('course_id', $this->course->id)
@@ -560,6 +560,11 @@ class SF2ExportService
             });
 
         return $map;
+    }
+
+    private function daysInMonth(): int
+    {
+        return (int) (new \DateTimeImmutable(sprintf('%04d-%02d-01', $this->year, $this->month)))->format('t');
     }
 
     /** Write a config value only when it is non-empty (else keep template value). */
