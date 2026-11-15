@@ -658,6 +658,10 @@ export default function ClassRecord() {
     })
   }, [classRows, selectedCourse, searchQuery])
 
+  const selectedCourseStudents = useMemo(() => {
+    return classRows.filter(student => student.courseId === selectedCourse)
+  }, [classRows, selectedCourse])
+
   const getGradeColor = (grade) => {
     if (grade === null || grade === undefined) return 'text-gray-400'
     if (grade >= 90) return 'text-green-600'
@@ -717,6 +721,11 @@ export default function ClassRecord() {
   }
 
   const handleExport = async () => {
+    if (!selectedCourseStudents.length) {
+      alert('NO STUDENTS: This course has no students to export.')
+      return
+    }
+
     setExporting(true)
     try {
       const exportCourses = selectedCourse
@@ -732,6 +741,11 @@ export default function ClassRecord() {
 
   // Export XLSX then upload it to Laravel and open in ONLYOFFICE
   const handleOpenInOnlyOffice = async () => {
+    if (!selectedCourseStudents.length) {
+      alert('NO STUDENTS: This course has no students to open in ONLYOFFICE.')
+      return
+    }
+
     setExporting(true)
     try {
       const exportCourses = selectedCourse
@@ -807,6 +821,39 @@ export default function ClassRecord() {
         onBack={() => setShowOOEditor(false)}
         onSaved={() => {}}
       />
+    )
+  }
+
+  if (!loading && selectedCourse && selectedCourseStudents.length === 0) {
+    const courseLabel = courseOptions.find(c => c.id === selectedCourse)?.label || 'This course'
+
+    return (
+      <div className="flex-1 flex items-center justify-center overflow-auto bg-gray-50 p-6">
+        <Card className="w-full max-w-lg border-red-200">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-red-700">NO STUDENTS</CardTitle>
+            <CardDescription>
+              {courseLabel} does not have any students yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-gray-600">
+              Add students to this course before opening or exporting its class record.
+            </p>
+            {courseOptions.length > 1 && (
+              <select
+                value={selectedCourse}
+                onChange={(e) => setSelectedCourse(e.target.value)}
+                className="mt-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                {courseOptions.map(course => (
+                  <option key={course.id} value={course.id}>{course.label}</option>
+                ))}
+              </select>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 

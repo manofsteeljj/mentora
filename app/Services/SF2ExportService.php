@@ -177,6 +177,9 @@ class SF2ExportService
             }
             $weekIndex = intdiv($day - $effectiveFirstDay + $leadIn, 7);
             $slot = $weekIndex * 5 + ($weekday - 1);
+            if (!isset(self::DAY_COLUMNS[$slot])) {
+                continue;
+            }
             $this->slotByDay[$day] = $slot;
             $this->schoolDays[] = $day;
         }
