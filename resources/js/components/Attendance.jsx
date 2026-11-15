@@ -249,7 +249,7 @@ export default function Attendance() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.message || `Generation failed (${res.status})`)
+        throw new Error(err.error || err.message || `Generation failed (${res.status})`)
       }
 
       const data = await res.json()

@@ -363,12 +363,32 @@ class DocumentController extends Controller
 
         $path = 'documents/attendance-sf2/' . $doc->id . '.xls';
         try {
-            Storage::disk('local')->makeDirectory('documents/attendance-sf2');
-            app(SF2ExportService::class)->generate($course, $data['month'], $data['year'], $config, Storage::disk('local')->path($path));
+            $disk = Storage::disk('local');
+            $disk->makeDirectory('documents/attendance-sf2');
+            if (!is_dir($disk->path('documents/attendance-sf2'))) {
+                throw new \RuntimeException('Unable to create the SF2 storage directory.');
+            }
+
+            $targetPath = $disk->path($path);
+            app(SF2ExportService::class)->generate($course, $data['month'], $data['year'], $config, $targetPath);
+            if (!$disk->exists($path)) {
+                throw new \RuntimeException('The generated SF2 workbook is not present in storage.');
+            }
         } catch (\Throwable $e) {
             $doc->delete();
-            Log::error('SF2 generation failed', ['course_id' => $course->id, 'error' => $e->getMessage()]);
-            return response()->json(['message' => 'Could not generate the SF2 report.'], 500);
+            Log::error('SF2 generation failed', [
+                'course_id' => $course->id,
+                'month' => $data['month'],
+                'year' => $data['year'],
+                'template' => resource_path('templates/sf2_template.xls'),
+                'target_path' => $disk->path($path),
+                'exception' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'message' => 'Could not generate the SF2 report.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
 
         $doc->update(['xls_path' => $path]);

@@ -101,6 +101,10 @@ class SF2ExportService
      */
     public function generate(Course $course, int $month, int $year, array $config = [], ?string $targetPath = null): string
     {
+        if (!is_file($this->templatePath) || !is_readable($this->templatePath)) {
+            throw new \RuntimeException('The SF2 template is missing or not readable: ' . $this->templatePath);
+        }
+
         $this->course = $course;
         $this->month = $month;
         $this->year = $year;
@@ -114,8 +118,17 @@ class SF2ExportService
         $this->writeSignatureBlock();
 
         $targetPath ??= tempnam(sys_get_temp_dir(), 'sf2_') . '.xls';
+        $targetDirectory = dirname($targetPath);
+        if (!is_dir($targetDirectory) || !is_writable($targetDirectory)) {
+            throw new \RuntimeException('The SF2 output directory is missing or not writable: ' . $targetDirectory);
+        }
+
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xls($this->spreadsheet);
         $writer->save($targetPath);
+
+        if (!is_file($targetPath) || filesize($targetPath) === 0) {
+            throw new \RuntimeException('The SF2 workbook was not written: ' . $targetPath);
+        }
 
         return $targetPath;
     }
