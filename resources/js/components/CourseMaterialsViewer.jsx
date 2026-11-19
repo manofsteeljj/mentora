@@ -114,8 +114,12 @@ export default function CourseMaterialsViewer({ courseId, courseName, courseCode
     })
   }, [materials, searchQuery, filterType])
 
-  const handleDownload = (materialId) => {
+  const handleView = (materialId) => {
     window.open(`/api/materials/${materialId}/download`, '_blank')
+  }
+
+  const handleDownload = (materialId) => {
+    window.open(`/api/materials/${materialId}/download?download=1`, '_blank')
   }
 
   const handleDelete = async (materialId) => {
@@ -288,7 +292,7 @@ export default function CourseMaterialsViewer({ courseId, courseName, courseCode
                         </div>
 
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleDownload(material.id)}>
+                          <Button size="sm" variant="outline" onClick={() => handleView(material.id)}>
                             <Eye className="w-4 h-4 mr-2" />
                             View
                           </Button>

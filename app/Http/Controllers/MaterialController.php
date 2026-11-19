@@ -263,7 +263,9 @@ class MaterialController extends Controller
             $q->where('user_id', $request->user()->id);
         })->findOrFail($id);
 
-        Storage::disk('public')->delete($material->file_path);
+        if ($material->file_path) {
+            Storage::disk('public')->delete($material->file_path);
+        }
         $material->delete();
 
         return response()->json(['success' => true]);
@@ -278,8 +280,29 @@ class MaterialController extends Controller
             $q->where('user_id', $request->user()->id);
         })->findOrFail($id);
 
-        $fullPath = Storage::disk('public')->path($material->file_path);
-        return response()->file($fullPath);
+        if ($material->file_path) {
+            $disk = Storage::disk('public');
+
+            if (!$disk->exists($material->file_path)) {
+                abort(404, 'The material file is no longer available.');
+            }
+
+            $fullPath = $disk->path($material->file_path);
+            $name = basename($material->file_path);
+
+            return $request->boolean('download')
+                ? response()->download($fullPath, $name)
+                : response()->file($fullPath);
+        }
+
+        if ($material->link) {
+            $scheme = strtolower(parse_url($material->link, PHP_URL_SCHEME) ?: '');
+            if (in_array($scheme, ['http', 'https'], true)) {
+                return redirect()->away($material->link);
+            }
+        }
+
+        abort(404, 'This material does not have a downloadable file or link.');
     }
 
     /**
