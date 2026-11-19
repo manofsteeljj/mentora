@@ -7,6 +7,10 @@ use App\Models\ClassRecordDocument;
 use App\Models\AttendanceDocument;
 use App\Models\UserDocument;
 use App\Models\Course;
+use App\Models\User;
+use App\Models\GradebookAssessment;
+use App\Models\GradebookGrade;
+use App\Models\Student;
 use App\Services\LessonPlanService;
 use App\Services\SF2ExportService;
 use App\Services\SF1ExportService;
@@ -20,6 +24,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
@@ -135,10 +143,10 @@ class DocumentController extends Controller
                     throw new \RuntimeException('The official document template is unavailable.');
                 }
             } else {
-                $spreadsheet = new Spreadsheet();
-                $sheet = $spreadsheet->getActiveSheet();
-                $sheet->setCellValue('A1', $title);
-                $sheet->setCellValue('A2', 'Edit this document in ONLYOFFICE.');
+                $spreadsheet = $this->buildPersonalClassRecordSpreadsheet(
+                    $request->user(),
+                    $title
+                );
                 (new Xlsx($spreadsheet))->save(Storage::disk('local')->path($path));
                 $spreadsheet->disconnectWorksheets();
             }
@@ -151,6 +159,477 @@ class DocumentController extends Controller
         $document->update(['storage_path' => $path]);
 
         return response()->json($this->personalDocumentPayload($document), 201);
+    }
+
+    private function buildPersonalClassRecordSpreadsheet(User $user, string $title): Spreadsheet
+    {
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getProperties()
+            ->setCreator($user->name)
+            ->setTitle($title);
+
+        $blankCourse = new Course([
+            'course_code' => 'TERM1',
+            'course_name' => '',
+            'section' => '',
+            'academic_term' => '',
+            'school_year' => '',
+        ]);
+        $courses = collect([$blankCourse]);
+
+        $activeSheet = $spreadsheet->getActiveSheet();
+        $createdSheet = false;
+
+        foreach ($courses as $course) {
+            $sheet = $createdSheet
+                ? $spreadsheet->createSheet()
+                : $activeSheet;
+            $createdSheet = true;
+
+            $sheetName = preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) ($course->course_code ?: $course->course_name));
+            $sheetName = substr(trim((string) $sheetName) ?: 'Class_Record', 0, 31);
+            $sheet->setTitle($sheetName);
+            $sheet->getPageSetup()->setOrientation('landscape')->setFitToPage(true)->setFitToWidth(1)->setFitToHeight(0);
+
+            $subject = strtoupper((string) $course->course_name);
+            $weights = str_contains($subject, 'EPP')
+                || str_contains($subject, 'TLE')
+                || str_contains($subject, 'PANTAHANAN')
+                ? ['ww' => 0.20, 'pt' => 0.60, 'qa' => 0.20]
+                : ['ww' => 0.20, 'pt' => 0.50, 'qa' => 0.30];
+            $wwPercent = (int) round($weights['ww'] * 100);
+            $ptPercent = (int) round($weights['pt'] * 100);
+            $qaPercent = (int) round($weights['qa'] * 100);
+
+            $widths = [4.1, 35.8, 1.8, 8, 8, 4.8, 8, 8, 8, 8, 6.4, 7.1, 8, 4.8, 8, 8, 6.4, 7.1, 8, 4.8, 8, 4.8, 7.1, 7.1, 8, 11.4, 11, 14];
+            foreach ($widths as $index => $width) {
+                $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index + 1))->setWidth($width);
+            }
+
+            $thin = ['style' => Border::BORDER_THIN];
+            $medium = ['style' => Border::BORDER_MEDIUM];
+            $allThin = ['top' => $thin, 'right' => $thin, 'bottom' => $thin, 'left' => $thin];
+
+            $sheet->mergeCells('A1:AB2');
+            $sheet->setCellValue('A1', 'Class Record');
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(21);
+            $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_TOP);
+            $sheet->getRowDimension(1)->setRowHeight(15);
+            $sheet->getRowDimension(2)->setRowHeight(15);
+            $sheet->mergeCells('A3:AB3');
+            $sheet->setCellValue('A3', '(Pursuant to DepEd Order No. 8, s. 2015)');
+            $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
+            $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $sheet->mergeCells('B4:F4');
+            $sheet->mergeCells('G4:H4');
+            $sheet->mergeCells('I4:K4');
+            $sheet->mergeCells('L4:O4');
+            $sheet->setCellValue('B4', 'REGION');
+            $sheet->setCellValue('G4', '');
+            $sheet->setCellValue('I4', 'DIVISION');
+            $sheet->setCellValue('L4', '');
+            foreach (['B4', 'I4'] as $cell) {
+                $sheet->getStyle($cell)->getFont()->setBold(true)->setSize(12);
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+            }
+            foreach (['G4', 'L4'] as $cell) {
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+                $sheet->getStyle($cell)->applyFromArray(['border' => $allThin]);
+            }
+            $sheet->getRowDimension(4)->setRowHeight(21);
+
+            $sheet->mergeCells('B5:F5');
+            $sheet->mergeCells('G5:O5');
+            $sheet->mergeCells('Q5:R5');
+            $sheet->mergeCells('S5:U5');
+            $sheet->mergeCells('V5:Y5');
+            $sheet->mergeCells('Z5:AB5');
+            $sheet->setCellValue('B5', 'SCHOOL NAME');
+            $sheet->setCellValue('G5', '');
+            $sheet->setCellValue('Q5', 'SCHOOL ID');
+            $sheet->setCellValue('S5', '');
+            $sheet->setCellValue('V5', 'SCHOOL YEAR');
+            $sheet->setCellValue('Z5', '');
+            foreach (['B5', 'Q5', 'V5'] as $cell) {
+                $sheet->getStyle($cell)->getFont()->setBold(true)->setSize(12);
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+            }
+            foreach (['G5', 'S5', 'Z5'] as $cell) {
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(false);
+                $sheet->getStyle($cell)->applyFromArray(['border' => $allThin]);
+            }
+            $sheet->getRowDimension(5)->setRowHeight(21);
+
+            $sheet->mergeCells('A7:B7');
+            $sheet->mergeCells('F7:I7');
+            $sheet->mergeCells('J7:M7');
+            $sheet->mergeCells('N7:P7');
+            $sheet->mergeCells('Q7:V7');
+            $sheet->mergeCells('X7:Y7');
+            $sheet->mergeCells('Z7:AB7');
+            $sheet->setCellValue('A7', 'TERM');
+            $sheet->setCellValue('F7', 'GRADE & SECTION:');
+            $sheet->setCellValue('J7', '');
+            $sheet->setCellValue('N7', 'TEACHER:');
+            $sheet->setCellValue('Q7', '');
+            $sheet->setCellValue('X7', 'SUBJECT:');
+            $sheet->setCellValue('Z7', '');
+            $sheet->getStyle('A7')->getFont()->setBold(true)->setSize(12);
+            $sheet->getStyle('A7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+            foreach (['F7', 'N7', 'X7'] as $cell) {
+                $sheet->getStyle($cell)->getFont()->setBold(true)->setSize(10);
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+            }
+            foreach (['J7', 'Q7', 'Z7'] as $cell) {
+                $sheet->getStyle($cell)->getFont()->setBold(true);
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+            }
+            $sheet->getStyle('A7')->applyFromArray(['border' => ['top' => $medium, 'left' => $medium]]);
+            $sheet->getStyle('F7')->applyFromArray(['border' => ['top' => $medium, 'left' => $medium]]);
+            $sheet->getRowDimension(7)->setRowHeight(23.25);
+
+            $sheet->mergeCells('A8:A10');
+            $sheet->mergeCells('B8:B10');
+            $sheet->mergeCells('F8:M8');
+            $sheet->mergeCells('N8:S8');
+            $sheet->mergeCells('T8:Y8');
+            $sheet->mergeCells('Z8:Z10');
+            $sheet->mergeCells('AA8:AA10');
+            $sheet->mergeCells('AB8:AB10');
+            $sheet->setCellValue('A8', 'No.');
+            $sheet->setCellValue('B8', "LEARNERS' NAMES");
+            $sheet->setCellValue('F8', "WRITTEN / ORAL WORKS ({$wwPercent}%)");
+            $sheet->setCellValue('N8', "PRODUCT / PERFORMANCE TASKS ({$ptPercent}%)");
+            $sheet->setCellValue('T8', "SUMMATIVE TESTS AND TERM EXAMINATIONS ({$qaPercent}%)");
+            $sheet->setCellValue('Z8', 'Initial Grade');
+            $sheet->setCellValue('AA8', 'TERM GRADE');
+            $sheet->setCellValue('AB8', 'DESCRIPTOR');
+
+            $headerFill = ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFD9E1F2']];
+            foreach (['A8', 'B8', 'F8', 'N8', 'T8', 'Z8', 'AA8', 'AB8'] as $cell) {
+                $sheet->getStyle($cell)->getFont()->setBold(true)->setSize($cell === 'B8' ? 14 : 11);
+                $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+                $sheet->getStyle($cell)->applyFromArray([
+                    'fill' => $headerFill,
+                    'border' => [
+                        'top' => $medium,
+                        'right' => $medium,
+                        'bottom' => $thin,
+                        'left' => $medium,
+                    ],
+                ]);
+            }
+
+            $itemHeaders = [
+                'F' => 1, 'G' => 2, 'H' => 3, 'I' => 4, 'J' => 5, 'K' => 'Total', 'L' => 'PS', 'M' => 'WS',
+                'N' => 1, 'O' => 2, 'P' => 3, 'Q' => 'Total', 'R' => 'PS', 'S' => 'WS',
+                'T' => 'ST1', 'U' => 'ST2', 'V' => 'TE', 'W' => 'Total', 'X' => 'PS', 'Y' => 'WS',
+            ];
+            foreach ($itemHeaders as $column => $value) {
+                $sheet->setCellValue("{$column}9", $value);
+                $sheet->getStyle("{$column}9")->getFont()->setBold(true);
+                $sheet->getStyle("{$column}9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+                $sheet->getStyle("{$column}9")->applyFromArray([
+                    'fill' => $headerFill,
+                    'border' => [
+                        'top' => $thin,
+                        'right' => $thin,
+                        'bottom' => $thin,
+                        'left' => $medium,
+                    ],
+                ]);
+            }
+            $sheet->getRowDimension(9)->setRowHeight(18);
+            $sheet->getRowDimension(8)->setRowHeight(46.75);
+            $sheet->setCellValue('B10', 'HIGHEST POSSIBLE SCORE');
+            $sheet->getStyle('B10')->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle('B10')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('B10')->applyFromArray(['border' => $allThin]);
+            foreach (['K' => 100, 'L' => 100, 'M' => $weights['ww'], 'Q' => 100, 'R' => 100, 'S' => $weights['pt'], 'W' => 100, 'X' => 100, 'Y' => $weights['qa']] as $column => $value) {
+                $sheet->setCellValue("{$column}10", $value);
+                $sheet->getStyle("{$column}10")->getFont()->setBold(true)->setSize(11);
+                $sheet->getStyle("{$column}10")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("{$column}10")->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFFFF2CC']], 'border' => $allThin]);
+                if (in_array($column, ['M', 'S', 'Y'], true)) {
+                    $sheet->getStyle("{$column}10")->getNumberFormat()->setFormatCode('0%');
+                }
+            }
+            $sheet->getRowDimension(10)->setRowHeight(18);
+
+            $students = Student::where('course_id', $course->id)
+                ->orderBy('name')
+                ->get();
+            $males = $students->filter(fn (Student $student) => strtoupper((string) $student->gender) !== 'F');
+            $females = $students->filter(fn (Student $student) => strtoupper((string) $student->gender) === 'F');
+
+            $assessmentsByPeriod = [];
+            $gradesByPeriod = [];
+            foreach (['1st', '2nd', '3rd'] as $period) {
+                $assessmentsByPeriod[$period] = GradebookAssessment::where('course_id', $course->id)
+                    ->where('grading_period', $period)
+                    ->orderBy('created_at')
+                    ->get();
+                $gradesByPeriod[$period] = GradebookGrade::whereIn(
+                    'assessment_id',
+                    $assessmentsByPeriod[$period]->pluck('id')
+                )->get()->groupBy('student_id');
+            }
+
+            $selectedPeriod = '3rd';
+            $selectedPeriodScore = -1;
+            foreach (['1st', '2nd', '3rd'] as $period) {
+                $periodScore = $gradesByPeriod[$period]->count() + $assessmentsByPeriod[$period]->count();
+                if ($periodScore > $selectedPeriodScore) {
+                    $selectedPeriod = $period;
+                    $selectedPeriodScore = $periodScore;
+                }
+            }
+            $termLabel = match ($selectedPeriod) {
+                '1st' => 'TERM 1',
+                '2nd' => 'TERM 2',
+                default => 'TERM 3',
+            };
+            $sheet->setCellValue('A7', '');
+
+            $row = 11;
+            $sheet->mergeCells("A{$row}:AB{$row}");
+            $sheet->setCellValue("A{$row}", 'MALE');
+            $sheet->getStyle("A{$row}:AB{$row}")->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle("A{$row}:AB{$row}")->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFE2EFDA']],
+                'border' => [
+                    'top' => $thin,
+                    'left' => $medium,
+                    'right' => $medium,
+                    'bottom' => $thin,
+                ],
+            ]);
+            $row++;
+
+            foreach ($males->values() as $index => $student) {
+                $this->writeClassRecordStudentRow($sheet, $row, $index + 1, $student, $selectedPeriod, $weights, $assessmentsByPeriod, $gradesByPeriod);
+                $row++;
+            }
+
+            $sheet->mergeCells("A{$row}:AB{$row}");
+            $sheet->setCellValue("A{$row}", 'FEMALE');
+            $sheet->getStyle("A{$row}:AB{$row}")->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle("A{$row}:AB{$row}")->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFE2EFDA']],
+                'border' => [
+                    'top' => $thin,
+                    'left' => $medium,
+                    'right' => $medium,
+                    'bottom' => $thin,
+                ],
+            ]);
+            $row++;
+
+            foreach ($females->values() as $index => $student) {
+                $this->writeClassRecordStudentRow($sheet, $row, $index + 1, $student, $selectedPeriod, $weights, $assessmentsByPeriod, $gradesByPeriod);
+                $row++;
+            }
+
+            $row++;
+            $sheet->setCellValue("B{$row}", 'MEAN');
+            $sheet->setCellValue("AA{$row}", '=IFERROR(ROUND(AVERAGE(AA12:AA' . ($row - 3) . '),2),"")');
+            $sheet->getStyle("B{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("AA{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("AA{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $row++;
+            $sheet->setCellValue("B{$row}", '% OF MASTERY (75 & above)');
+            $sheet->setCellValue("AA{$row}", '=IFERROR(ROUND(COUNTIF(AA12:AA' . ($row - 4) . ',">=75")/COUNT(AA12:AA' . ($row - 4) . ')*100,2),"")');
+            $sheet->setCellValue("AB{$row}", '%');
+            $sheet->getStyle("B{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("AA{$row}:AB{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("AA{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+            $row += 2;
+            $sheet->setCellValue("B{$row}", 'Prepared by:');
+            $sheet->setCellValue("J{$row}", 'Noted by:');
+            $row += 2;
+            $sheet->mergeCells("B{$row}:H{$row}");
+            $sheet->setCellValue("B{$row}", '');
+            $sheet->getStyle("B{$row}")->getFont()->setBold(true)->setUnderline(true);
+            $sheet->getStyle("B{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $row++;
+            $sheet->mergeCells("B{$row}:H{$row}");
+            $sheet->setCellValue("B{$row}", 'Teacher');
+            $sheet->getStyle("B{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $sheet->freezePane('C11');
+        }
+
+        if (!$createdSheet) {
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Class_Record');
+            $sheet->setCellValue('A1', $title);
+            $sheet->mergeCells('A1:H1');
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+            $sheet->setCellValue('A3', 'No courses found.');
+            $sheet->setCellValue('A4', 'Create or sync a course, then create this template again.');
+            $sheet->getColumnDimension('A')->setWidth(50);
+        }
+
+        return $spreadsheet;
+    }
+
+    private function writeClassRecordStudentRow(
+        $sheet,
+        int $row,
+        int $number,
+        Student $student,
+        string $period,
+        array $weights,
+        array $assessmentsByPeriod,
+        array $gradesByPeriod
+    ): void {
+        $assessments = $assessmentsByPeriod[$period];
+        $written = $assessments->filter(fn (GradebookAssessment $assessment) => in_array($assessment->type, ['activity', 'quiz'], true))->values();
+        $performance = $assessments->filter(fn (GradebookAssessment $assessment) => in_array($assessment->type, ['project', 'assignment'], true))->values();
+        $summative = $assessments->filter(fn (GradebookAssessment $assessment) => $assessment->type === 'exam')->values();
+
+        $sheet->setCellValue("A{$row}", $number);
+        $sheet->setCellValue("B{$row}", $student->name);
+
+        $studentGrades = $gradesByPeriod[$period]->get($student->id, collect());
+        $scoreMap = $studentGrades->pluck('score', 'assessment_id');
+
+        $writtenColumns = ['F', 'G', 'H', 'I', 'J'];
+        foreach ($writtenColumns as $index => $column) {
+            $assessment = $written->get($index);
+            if ($assessment && $scoreMap->has($assessment->id)) {
+                $sheet->setCellValue("{$column}{$row}", (float) $scoreMap[$assessment->id]);
+            }
+        }
+        $performanceColumns = ['N', 'O', 'P'];
+        foreach ($performanceColumns as $index => $column) {
+            $assessment = $performance->get($index);
+            if ($assessment && $scoreMap->has($assessment->id)) {
+                $sheet->setCellValue("{$column}{$row}", (float) $scoreMap[$assessment->id]);
+            }
+        }
+        $summativeColumns = ['T', 'U', 'V'];
+        foreach ($summativeColumns as $index => $column) {
+            $assessment = $summative->get($index);
+            if ($assessment && $scoreMap->has($assessment->id)) {
+                $sheet->setCellValue("{$column}{$row}", (float) $scoreMap[$assessment->id]);
+            }
+        }
+
+        $sheet->setCellValue("K{$row}", "=IF(COUNT(\$F{$row}:\$J{$row})=0,\"\",SUM(\$F{$row}:\$J{$row}))");
+        $sheet->setCellValue("L{$row}", "=IF(\$K{$row}=\"\",\"\",ROUND((\$K{$row}/\$K\$10)*\$L\$10,2))");
+        $sheet->setCellValue("M{$row}", "=IF(\$L{$row}=\"\",\"\",ROUND(\$L{$row}*\$M\$10,2))");
+        $sheet->setCellValue("Q{$row}", "=IF(COUNT(\$N{$row}:\$P{$row})=0,\"\",SUM(\$N{$row}:\$P{$row}))");
+        $sheet->setCellValue("R{$row}", "=IF(\$Q{$row}=\"\",\"\",ROUND((\$Q{$row}/\$Q\$10)*\$R\$10,2))");
+        $sheet->setCellValue("S{$row}", "=IF(\$R{$row}=\"\",\"\",ROUND(\$R{$row}*\$S\$10,2))");
+        $sheet->setCellValue("W{$row}", "=IF(COUNT(\$T{$row}:\$V{$row})=0,\"\",SUM(\$T{$row}:\$V{$row}))");
+        $sheet->setCellValue("X{$row}", "=IF(\$W{$row}=\"\",\"\",ROUND((\$W{$row}/\$W\$10)*\$X\$10,2))");
+        $sheet->setCellValue("Y{$row}", "=IF(\$X{$row}=\"\",\"\",ROUND(\$X{$row}*\$Y\$10,2))");
+        $sheet->setCellValue("Z{$row}", "=IF(\$W{$row}=\"\",\"\",ROUND(SUM(\$M{$row},\$S{$row},\$Y{$row}),2))");
+
+        $initialGrade = $this->calculatePersonalClassRecordInitialGrade(
+            $written,
+            $performance,
+            $summative,
+            $scoreMap,
+            $weights
+        );
+        if ($initialGrade !== null) {
+            $termGrade = $this->transmutePersonalClassRecordGrade($initialGrade);
+            $sheet->setCellValue("AA{$row}", $termGrade);
+            $sheet->setCellValue("AB{$row}", $this->descriptorPersonalClassRecordGrade($termGrade));
+        }
+
+        $thin = ['style' => Border::BORDER_THIN];
+        $medium = ['style' => Border::BORDER_MEDIUM];
+        for ($columnIndex = 1; $columnIndex <= 28; $columnIndex++) {
+            $column = Coordinate::stringFromColumnIndex($columnIndex);
+            $borderLeft = $column === 'A' ? $medium : $thin;
+            $borderRight = $column === 'AB' ? $medium : $thin;
+            $sheet->getStyle("{$column}{$row}")->applyFromArray([
+                'border' => [
+                    'top' => $thin,
+                    'right' => $borderRight,
+                    'bottom' => $thin,
+                    'left' => $borderLeft,
+                ],
+            ]);
+            $sheet->getStyle("{$column}{$row}")->getFont()->setSize(11);
+            $sheet->getStyle("{$column}{$row}")->getAlignment()->setHorizontal(
+                $column === 'B' ? Alignment::HORIZONTAL_LEFT : Alignment::HORIZONTAL_CENTER
+            )->setVertical(Alignment::VERTICAL_CENTER);
+        }
+        foreach (['L', 'M', 'R', 'S', 'X', 'Y', 'Z', 'AA', 'AB'] as $column) {
+            $sheet->getStyle("{$column}{$row}")->getFont()->setBold(true)->setSize(11);
+        }
+        $sheet->getRowDimension($row)->setRowHeight(18);
+    }
+
+    private function calculatePersonalClassRecordInitialGrade($written, $performance, $summative, $scoreMap, array $weights): ?float
+    {
+        $categories = [
+            [$written, $weights['ww']],
+            [$performance, $weights['pt']],
+            [$summative, $weights['qa']],
+        ];
+        $percentages = [];
+
+        foreach ($categories as $categoryIndex => [$assessments, $weight]) {
+            $raw = 0.0;
+            $maximum = 0.0;
+            $limit = $categoryIndex === 0 ? 5 : 3;
+            foreach ($assessments->take($limit) as $assessment) {
+                if (!$scoreMap->has($assessment->id)) {
+                    continue;
+                }
+                $raw += (float) $scoreMap[$assessment->id];
+                $maximum += (float) $assessment->max_score;
+            }
+            $percentages[] = $maximum > 0 ? ($raw / $maximum) * 100 : null;
+        }
+
+        if ($percentages[0] === null || $percentages[1] === null || $percentages[2] === null) {
+            return null;
+        }
+
+        return round(
+            ($percentages[0] * $weights['ww'])
+            + ($percentages[1] * $weights['pt'])
+            + ($percentages[2] * $weights['qa']),
+            2
+        );
+    }
+
+    private function transmutePersonalClassRecordGrade(float $grade): int
+    {
+        $table = [
+            [0, 39.99, 60], [40, 42.99, 61], [43, 45.99, 62], [46, 47.99, 63],
+            [48, 49.99, 64], [50, 51.99, 65], [52, 53.99, 66], [54, 55.99, 67],
+            [56, 57.99, 68], [58, 59.99, 69], [60, 61.99, 70], [62, 63.99, 71],
+            [64, 65.99, 72], [66, 67.99, 73], [68, 69.99, 74], [70, 72.99, 75],
+            [73, 74.99, 76], [75, 75.99, 77], [76, 76.99, 78], [77, 77.99, 79],
+            [78, 78.99, 80], [79, 79.99, 81], [80, 80.99, 82], [81, 81.99, 83],
+            [82, 82.99, 84], [83, 83.99, 85], [84, 84.99, 86], [85, 85.99, 87],
+            [86, 86.99, 88], [87, 87.99, 89], [88, 88.99, 90], [89, 89.99, 91],
+            [90, 90.99, 92], [91, 91.99, 93], [92, 92.99, 94], [93, 93.99, 95],
+            [94, 94.99, 96], [95, 95.99, 97], [96, 97.49, 98], [97.5, 99.49, 99],
+            [99.5, 100, 100],
+        ];
+        foreach ($table as [$low, $high, $value]) {
+            if ($grade >= $low && $grade <= $high) return $value;
+        }
+        return $grade >= 100 ? 100 : 60;
+    }
+
+    private function descriptorPersonalClassRecordGrade(int $grade): string
+    {
+        if ($grade >= 90) return 'Advancing';
+        if ($grade >= 80) return 'Benchmarking';
+        if ($grade >= 75) return 'Connecting';
+        if ($grade >= 65) return 'Developing';
+        return 'Emerging';
     }
 
     public function personalEditor(Request $request, int $id): JsonResponse

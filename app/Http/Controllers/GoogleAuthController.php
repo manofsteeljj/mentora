@@ -10,11 +10,31 @@ use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
+    private function oauthIsConfigured(): bool
+    {
+        $clientId = trim((string) config('services.google.client_id'));
+        $clientSecret = trim((string) config('services.google.client_secret'));
+
+        return $clientId !== ''
+            && $clientSecret !== ''
+            && $clientId !== 'your_client_id'
+            && $clientSecret !== 'your_client_secret';
+    }
+
     /**
      * Redirect to Google OAuth with Classroom scopes.
      */
     public function redirect()
     {
+        if (!$this->oauthIsConfigured()) {
+            Log::error('Google OAuth is not configured');
+
+            return redirect('/login')->with(
+                'error',
+                'Google sign-in is not configured. Please contact the administrator.'
+            );
+        }
+
         return Socialite::driver('google')
             ->scopes([
                 'https://www.googleapis.com/auth/classroom.courses.readonly',
@@ -34,6 +54,14 @@ class GoogleAuthController extends Controller
      */
     public function callback()
     {
+        if (!$this->oauthIsConfigured()) {
+            Log::error('Google OAuth callback received while OAuth is not configured');
+            return redirect('/login')->with(
+                'error',
+                'Google sign-in is not configured. Please contact the administrator.'
+            );
+        }
+
         try {
             $googleUser = Socialite::driver('google')->user();
         } catch (\Exception $e) {

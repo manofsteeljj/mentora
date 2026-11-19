@@ -22,4 +22,16 @@ class LinkSmokeTest extends TestCase
         $this->get('/dashboard')->assertRedirect('/login');
         $this->get('/profile')->assertRedirect('/login');
     }
+
+    public function test_google_redirect_reports_missing_configuration(): void
+    {
+        config([
+            'services.google.client_id' => 'your_client_id',
+            'services.google.client_secret' => 'your_client_secret',
+        ]);
+
+        $this->get('/auth/google/redirect')
+            ->assertRedirect('/login')
+            ->assertSessionHas('error');
+    }
 }

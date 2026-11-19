@@ -8,6 +8,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+use App\Models\Course;
+use App\Models\Student;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class PersonalDocumentEditorTest extends TestCase
@@ -55,6 +58,48 @@ class PersonalDocumentEditorTest extends TestCase
             ->assertOk()
             ->assertJsonPath('type', 'personal')
             ->assertJsonPath('documentType', 'cell');
+    }
+
+    public function test_class_record_template_is_blank_but_uses_the_deped_layout(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $course = Course::factory()->create([
+            'user_id' => $user->id,
+            'course_code' => 'ENG101',
+            'course_name' => 'English',
+            'section' => 'Grade 6 - Rizal',
+        ]);
+        $student = Student::create([
+            'course_id' => $course->id,
+            'name' => 'Maria Santos',
+            'student_number' => '2026-001',
+        ]);
+        $student->forceFill(['gender' => 'F'])->save();
+
+        $response = $this->actingAs($user)
+            ->postJson('/api/documents/personal/template', ['kind' => 'class-record'])
+            ->assertCreated();
+
+        $document = UserDocument::findOrFail($response->json('id'));
+        $spreadsheet = IOFactory::load(Storage::disk('local')->path($document->storage_path));
+        $sheet = $spreadsheet->getSheetByName('TERM1');
+
+        $this->assertNotNull($sheet);
+        $this->assertSame('Class Record', $sheet->getCell('A1')->getValue());
+        $this->assertTrue($sheet->getCell('Z7')->getValue() === null || $sheet->getCell('Z7')->getValue() === '');
+        $this->assertSame("WRITTEN / ORAL WORKS (20%)", $sheet->getCell('F8')->getValue());
+        $this->assertSame("PRODUCT / PERFORMANCE TASKS (50%)", $sheet->getCell('N8')->getValue());
+        $this->assertSame("SUMMATIVE TESTS AND TERM EXAMINATIONS (30%)", $sheet->getCell('T8')->getValue());
+        $this->assertSame(46.75, $sheet->getRowDimension(8)->getRowHeight());
+        $foundStudent = false;
+        for ($row = 12; $row <= $sheet->getHighestRow(); $row++) {
+            if ($sheet->getCell("B{$row}")->getValue() === 'Maria Santos') {
+                $foundStudent = true;
+                break;
+            }
+        }
+        $this->assertFalse($foundStudent);
     }
 
     public function test_sf1_and_sf2_templates_use_the_official_workbooks(): void
